@@ -1,209 +1,140 @@
+// index page: dropdowns (Erntejahr, Firma, Frucht) -> list of Schläge
 let DATA = [];
-let FILTERED = [];
-let HEADERS = [];
-let page = 1;
-
 const els = {
-  year: document.getElementById('filterYear'),
-  owner: document.getElementById('filterOwner'),
-  crop: document.getElementById('filterCrop'),
-  field: document.getElementById('filterField'),
-  text: document.getElementById('filterText'),
+  year: document.getElementById('year'),
+  firma: document.getElementById('firma'),
+  frucht: document.getElementById('frucht'),
+  list: document.getElementById('schlagList'),
+  count: document.getElementById('count'),
   status: document.getElementById('status'),
-  tableHead: document.querySelector('#dataTable thead'),
-  tableBody: document.querySelector('#dataTable tbody'),
-  btnReset: document.getElementById('btnReset'),
-  btnExport: document.getElementById('btnExport'),
-  btnPrev: document.getElementById('btnPrev'),
-  btnNext: document.getElementById('btnNext'),
-  pageInfo: document.getElementById('pageInfo'),
-  pageSize: document.getElementById('pageSize'),
+  search: document.getElementById('schlagSearch')
 };
 
-function uniqSorted(arr){
-  const set = new Set(arr.filter(v => v !== null && v !== undefined && v !== ''));
-  const out = Array.from(set);
-  // numeric sort when possible
-  out.sort((a,b) => {
-    const na = Number(a), nb = Number(b);
-    const aIsNum = !Number.isNaN(na) && String(a).trim() !== '';
-    const bIsNum = !Number.isNaN(nb) && String(b).trim() !== '';
-    if (aIsNum && bIsNum) return na - nb;
-    return String(a).localeCompare(String(b), 'de');
-  });
-  return out;
+function uniq(arr){
+  return Array.from(new Set(arr.filter(v => v !== null && v !== undefined && String(v).trim() !== ''))).sort((a,b)=>String(a).localeCompare(String(b), 'de'));
 }
 
-function fillSelect(selectEl, values, labelAll='Alle'){
-  selectEl.innerHTML = '';
-  const optAll = document.createElement('option');
-  optAll.value = '';
-  optAll.textContent = labelAll;
-  selectEl.appendChild(optAll);
-  for(const v of values){
+function setOptions(select, values, placeholder){
+  select.innerHTML = '';
+  const opt0 = document.createElement('option');
+  opt0.value = '';
+  opt0.textContent = placeholder;
+  select.appendChild(opt0);
+
+  values.forEach(v=>{
     const o = document.createElement('option');
     o.value = String(v);
     o.textContent = String(v);
-    selectEl.appendChild(o);
-  }
+    select.appendChild(o);
+  });
 }
 
-function getFilters(){
+function currentFilters(){
   return {
-    c3: els.year.value || null,
-    betrieb: els.owner.value || null,
-    c26: els.crop.value || null,
-    c6: els.field.value || null,
-    text: (els.text.value || '').trim().toLowerCase(),
+    year: els.year.value,
+    firma: els.firma.value,
+    frucht: els.frucht.value,
+    q: (els.search.value || '').trim().toLowerCase()
   };
 }
 
-function applyFilters(){
-  const f = getFilters();
-  FILTERED = DATA.filter(r => {
-    if (f.c3 && String(r.c3) !== f.c3) return false;
-    if (f.betrieb && String(r.betrieb) !== f.betrieb) return false;
-    if (f.c26 && String(r.c26) !== f.c26) return false;
-    if (f.c6 && String(r.c6) !== f.c6) return false;
-    if (f.text){
-      // naive freitextsuche über die wichtigsten textfelder + gesamte zeile als fallback
-      const hay = [
-        r.c6, r.c26, r.c10, r.c5, r.c7, r.c8, r.c9, r.indikation
-      ].map(x => (x ?? '')).join(' | ').toLowerCase();
-      if (!hay.includes(f.text)){
-        // fallback: prüfen ob im json-string der zeile enthalten
-        if (!JSON.stringify(r).toLowerCase().includes(f.text)) return false;
-      }
-    }
+function filteredRows(){
+  const f = currentFilters();
+  return DATA.filter(r=>{
+    if (f.year && String(r.E_Jahr) !== f.year) return false;
+    if (f.firma && String(r.Firma) !== f.firma) return false;
+    if (f.frucht && String(r.Frucht) !== f.frucht) return false;
+    return true;
+  });
+}
+
+function refreshSchlaege(){
+  const f = currentFilters();
+  const rows = filteredRows();
+  let schlaege = uniq(rows.map(r=>r.Schlag));
+
+  if (f.q){
+    schlaege = schlaege.filter(s => String(s).toLowerCase().includes(f.q));
+  }
+
+  els.list.innerHTML = '';
+  schlaege.forEach(s=>{
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    const params = new URLSearchParams({
+      year: f.year || '',
+      firma: f.firma || '',
+      frucht: f.frucht || '',
+      schlag: String(s)
+    });
+    a.href = 'detail.html?' + params.toString();
+    a.textContent = String(s);
+    li.appendChild(a);
+    els.list.appendChild(li);
+  });
+
+  els.count.textContent = `${schlaege.length} Schläge`;
+  els.status.textContent = rows.length ? `${rows.length} Datensätze passen zur Auswahl.` : 'Keine Datensätze für diese Auswahl.';
+}
+
+function refreshDependentDropdowns(){
+  // Make dropdowns dependent: changing one reduces available values for others
+  const y = els.year.value, f = els.firma.value, fr = els.frucht.value;
+
+  // compute possible values given current partial selections
+  const base = DATA.filter(r=>{
+    if (y && String(r.E_Jahr) !== y) return false;
+    if (f && String(r.Firma) !== f) return false;
+    if (fr && String(r.Frucht) !== fr) return false;
     return true;
   });
 
-  page = 1;
-  render();
-}
+  const years = uniq(base.map(r=>r.E_Jahr));
+  const firmas = uniq(base.map(r=>r.Firma));
+  const fruechte = uniq(base.map(r=>r.Frucht));
 
-function renderTableHeader(){
-  els.tableHead.innerHTML = '';
-  const tr = document.createElement('tr');
-  for(const h of HEADERS){
-    const th = document.createElement('th');
-    th.textContent = h;
-    tr.appendChild(th);
-  }
-  els.tableHead.appendChild(tr);
-}
+  // Keep current selection if still available
+  const keep = (sel, vals) => (sel && vals.includes(sel)) ? sel : '';
 
-function formatCell(v){
-  if (v === null || v === undefined) return '';
-  return String(v);
-}
+  const newYear = keep(y, years.map(String));
+  const newFirma = keep(f, firmas.map(String));
+  const newFrucht = keep(fr, fruechte.map(String));
 
-function render(){
-  const ps = Number(els.pageSize.value || 200);
-  const total = FILTERED.length;
-  const totalPages = Math.max(1, Math.ceil(total / ps));
-  page = Math.min(page, totalPages);
+  setOptions(els.year, years, 'Alle Erntejahre');
+  setOptions(els.firma, firmas, 'Alle Firmen');
+  setOptions(els.frucht, fruechte, 'Alle Früchte');
 
-  const start = (page - 1) * ps;
-  const end = Math.min(start + ps, total);
-  const slice = FILTERED.slice(start, end);
-
-  els.tableBody.innerHTML = '';
-  const frag = document.createDocumentFragment();
-  for(const r of slice){
-    const tr = document.createElement('tr');
-    for(const h of HEADERS){
-      const td = document.createElement('td');
-      td.textContent = formatCell(r[h]);
-      tr.appendChild(td);
-    }
-    frag.appendChild(tr);
-  }
-  els.tableBody.appendChild(frag);
-
-  els.status.textContent = `Treffer: ${total.toLocaleString('de-DE')} (zeige ${start+1}-${end})`;
-  els.pageInfo.textContent = `Seite ${page} / ${totalPages}`;
-  els.btnPrev.disabled = page <= 1;
-  els.btnNext.disabled = page >= totalPages;
-}
-
-function resetFilters(){
-  els.year.value = '';
-  els.owner.value = '';
-  els.crop.value = '';
-  els.field.value = '';
-  els.text.value = '';
-  applyFilters();
-}
-
-function toCSV(rows, headers){
-  const esc = (s) => {
-    const str = String(s ?? '');
-    if (/["\n\r;,]/.test(str)) return '"' + str.replaceAll('"', '""') + '"';
-    return str;
-  };
-  const lines = [];
-  lines.push(headers.map(esc).join(';'));
-  for(const r of rows){
-    lines.push(headers.map(h => esc(r[h])).join(';'));
-  }
-  return lines.join('\n');
-}
-
-function exportCSV(){
-  // export all filtered rows (might be big)
-  const csv = toCSV(FILTERED, HEADERS);
-  const blob = new Blob([csv], {type: 'text/csv;charset=utf-8'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  const stamp = new Date().toISOString().slice(0,19).replaceAll(':','-');
-  a.download = `mitteleinsatz_export_${stamp}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  els.year.value = newYear;
+  els.firma.value = newFirma;
+  els.frucht.value = newFrucht;
 }
 
 async function init(){
-  els.status.textContent = 'Lade data.json …';
+  els.status.textContent = 'Lade Daten…';
   const res = await fetch('data.json', {cache:'no-store'});
   DATA = await res.json();
-  if (!DATA.length){
-    els.status.textContent = 'Keine Daten gefunden.';
-    return;
-  }
 
-  HEADERS = Object.keys(DATA[0]);
-  renderTableHeader();
+  // initial options from full dataset
+  setOptions(els.year, uniq(DATA.map(r=>r.E_Jahr)), 'Alle Erntejahre');
+  setOptions(els.firma, uniq(DATA.map(r=>r.Firma)), 'Alle Firmen');
+  setOptions(els.frucht, uniq(DATA.map(r=>r.Frucht)), 'Alle Früchte');
 
-  fillSelect(els.year, uniqSorted(DATA.map(r => r.c3)));
-  fillSelect(els.owner, uniqSorted(DATA.map(r => r.betrieb)));
-  fillSelect(els.crop, uniqSorted(DATA.map(r => r.c26)));
-  fillSelect(els.field, uniqSorted(DATA.map(r => r.c6)));
+  els.status.textContent = '';
 
-  // initial
-  FILTERED = DATA.slice();
-  render();
+  const onChange = () => {
+    refreshDependentDropdowns();
+    refreshSchlaege();
+  };
 
-  // events
-  for(const el of [els.year, els.owner, els.crop, els.field]){
-    el.addEventListener('change', applyFilters);
-  }
-  els.text.addEventListener('input', () => {
-    // debounce
-    clearTimeout(window.__t);
-    window.__t = setTimeout(applyFilters, 250);
-  });
+  els.year.addEventListener('change', onChange);
+  els.firma.addEventListener('change', onChange);
+  els.frucht.addEventListener('change', onChange);
+  els.search.addEventListener('input', refreshSchlaege);
 
-  els.pageSize.addEventListener('change', () => { page = 1; render(); });
-  els.btnPrev.addEventListener('click', () => { page -= 1; render(); });
-  els.btnNext.addEventListener('click', () => { page += 1; render(); });
-  els.btnReset.addEventListener('click', resetFilters);
-  els.btnExport.addEventListener('click', exportCSV);
+  refreshSchlaege();
 }
 
-init().catch(err => {
+init().catch(err=>{
   console.error(err);
-  els.status.textContent = 'Fehler beim Laden – siehe Konsole.';
+  els.status.textContent = 'Fehler beim Laden der Daten. Prüfe, ob data.json erreichbar ist.';
 });

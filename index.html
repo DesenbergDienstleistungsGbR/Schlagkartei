@@ -1,86 +1,50 @@
 <!doctype html>
 <html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mitteleinsatz – Filter & Anzeige</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mitteleinsatz – Auswahl</title>
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-  <header class="header">
-    <div class="container">
-      <h1>Mitteleinsatz</h1>
-      <p class="sub">Filter nach <strong>Erntejahr (c3)</strong>, <strong>Eigentümer/Betrieb (betrieb)</strong>, <strong>Frucht (c26)</strong> und <strong>Schlag (c6)</strong>.</p>
-    </div>
+  <header class="wrap">
+    <h1>Mitteleinsatz</h1>
+    <p class="muted">Wähle <b>Erntejahr</b>, <b>Firma</b> und <b>Frucht</b>. Danach siehst du die passenden <b>Schläge</b>. Klick auf einen Schlag für Details.</p>
   </header>
 
-  <main class="container">
+  <main class="wrap">
     <section class="card">
-      <div class="filters">
+      <div class="grid">
         <label>
-          Erntejahr (c3)
-          <select id="filterYear"></select>
+          <span>Erntejahr</span>
+          <select id="year"></select>
         </label>
-
         <label>
-          Eigentümer / Betrieb (betrieb)
-          <select id="filterOwner"></select>
+          <span>Firma</span>
+          <select id="firma"></select>
         </label>
-
         <label>
-          Frucht (c26)
-          <select id="filterCrop"></select>
+          <span>Frucht</span>
+          <select id="frucht"></select>
         </label>
-
-        <label>
-          Schlag (c6)
-          <select id="filterField"></select>
-        </label>
-
-        <label class="search">
-          Freitextsuche (optional)
-          <input id="filterText" type="search" placeholder="z.B. Mittelname, Code, ..."/>
-        </label>
-
-        <div class="buttons">
-          <button id="btnReset" type="button">Zurücksetzen</button>
-          <button id="btnExport" type="button">Gefilterte Daten als CSV exportieren</button>
-        </div>
       </div>
 
-      <div class="meta">
-        <div><span id="status">Lade Daten…</span></div>
-        <div class="pager">
-          <button id="btnPrev" type="button" disabled>◀</button>
-          <span id="pageInfo">–</span>
-          <button id="btnNext" type="button" disabled>▶</button>
-          <label class="pagesize">
-            Zeilen/Seite
-            <select id="pageSize">
-              <option>50</option>
-              <option selected>200</option>
-              <option>500</option>
-              <option>1000</option>
-            </select>
-          </label>
-        </div>
+      <div class="row">
+        <input id="schlagSearch" class="search" type="search" placeholder="Schlag suchen…"/>
+        <span id="count" class="pill">0 Schläge</span>
       </div>
-
-      <div class="tableWrap">
-        <table id="dataTable">
-          <thead></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+      <div id="status" class="muted small"></div>
     </section>
 
-    <section class="hint">
-      <h2>Hinweis</h2>
-      <p>Diese Seite ist eine <strong>statische</strong> Website. Zum Starten lokal eignet sich z.B. ein einfacher Webserver (wegen <code>fetch</code>).</p>
-      <pre><code>python -m http.server 8000</code></pre>
-      <p>Dann im Browser öffnen: <code>http://localhost:8000</code></p>
+    <section class="card">
+      <h2>Schläge</h2>
+      <ul id="schlagList" class="list"></ul>
     </section>
   </main>
+
+  <footer class="wrap muted small">
+    <span>Lokale Datenquelle: <code>data.json</code></span>
+  </footer>
 
   <script src="app.js"></script>
 </body>
