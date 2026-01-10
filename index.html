@@ -1,51 +1,44 @@
 <!doctype html>
 <html lang="de">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Mitteleinsatz – Auswahl</title>
-  <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header class="wrap">
-    <h1>Mitteleinsatz</h1>
-    <p class="muted">Wähle <b>Erntejahr</b>, <b>Firma</b> und <b>Frucht</b>. Danach siehst du die passenden <b>Schläge</b>. Klick auf einen Schlag für Details.</p>
-  </header>
-
-  <main class="wrap">
-    <section class="card">
-      <div class="grid">
-        <label>
-          <span>Erntejahr</span>
-          <select id="year"></select>
-        </label>
-        <label>
-          <span>Firma</span>
-          <select id="firma"></select>
-        </label>
-        <label>
-          <span>Frucht</span>
-          <select id="frucht"></select>
-        </label>
-      </div>
-
+  <div class="container">
+    <div class="row" style="justify-content:space-between">
+      <h1>Mitteleinsatz</h1>
       <div class="row">
-        <input id="schlagSearch" class="search" type="search" placeholder="Schlag suchen…"/>
-        <span id="count" class="pill">0 Schläge</span>
+        <span class="badge" id="countBadge">–</span>
+        <button class="secondary" id="logoutBtn">Logout</button>
       </div>
-      <div id="status" class="muted small"></div>
-    </section>
+    </div>
 
-    <section class="card">
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label for="yearSel">Erntejahr</label>
+          <select id="yearSel"></select>
+        </div>
+        <div>
+          <label for="firmaSel">Firma</label>
+          <select id="firmaSel"></select>
+        </div>
+        <div>
+          <label for="fruchtSel">Frucht</label>
+          <select id="fruchtSel"></select>
+        </div>
+      </div>
+
+      <hr/>
       <h2>Schläge</h2>
-      <ul id="schlagList" class="list"></ul>
-    </section>
-  </main>
+      <p class="muted" id="hint">Wähle Erntejahr, Firma und Frucht – dann erscheinen die passenden Schläge.</p>
+      <ul class="list" id="schlagList"></ul>
+    </div>
+  </div>
 
-  <footer class="wrap muted small">
-    <span>Lokale Datenquelle: <code>data.json</code></span>
-  </footer>
-
-  <script src="app.js"></script>
+<script type="module" src="index.js"></script>
 </body>
 </html>

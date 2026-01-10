@@ -1,35 +1,76 @@
 <!doctype html>
 <html lang="de">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mitteleinsatz – Schlagdetails</title>
-  <link rel="stylesheet" href="style.css"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mitteleinsatz – Detail</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header class="wrap">
-    <a class="back" href="index.html">← zurück</a>
-    <h1 id="title">Schlagdetails</h1>
-    <p id="subtitle" class="muted"></p>
-  </header>
-
-  <main class="wrap">
-    <section class="card">
-      <div class="row">
-        <input id="q" class="search" type="search" placeholder="In Ergebnissen suchen…"/>
-        <button id="export" class="btn" type="button">CSV exportieren</button>
-        <span id="rows" class="pill">0 Zeilen</span>
+  <div class="container">
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <h1>Detail</h1>
+        <p class="muted" id="subtitle"></p>
       </div>
-      <div id="status" class="muted small"></div>
-      <div class="tableWrap">
+      <div class="row">
+        <button class="secondary" id="backBtn">← Zurück</button>
+        <button class="secondary" id="logoutBtn">Logout</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+        <div>
+          <label for="yearSel">Erntejahr</label>
+          <select id="yearSel"></select>
+        </div>
+        <div>
+          <label for="firmaSel">Firma</label>
+          <select id="firmaSel"></select>
+        </div>
+        <div>
+          <label for="fruchtSel">Frucht</label>
+          <select id="fruchtSel"></select>
+        </div>
+        <div>
+          <label for="artSel">Art</label>
+          <select id="artSel"></select>
+        </div>
+      </div>
+
+      <hr/>
+      <div class="row" style="justify-content:space-between;align-items:flex-end">
+        <div>
+          <h2 style="margin:0">Schlag: <span id="schlagName" class="badge"></span></h2>
+          <p class="muted small" style="margin:6px 0 0">
+            Spalten (Menge/ha, gesN ha, NH4 ha, P ha, K ha, S pro ha) werden auf 2 Stellen gerundet angezeigt.
+          </p>
+        </div>
+        <div class="row">
+          <label style="margin:0">
+            <span class="muted small">Suche</span><br/>
+            <input id="search" placeholder="z.B. Artikel, Datum…" />
+          </label>
+          <button id="csvBtn" class="secondary">CSV</button>
+        </div>
+      </div>
+
+      <hr/>
+      <h2>Summen (für aktuell angezeigte Datensätze)</h2>
+      <div class="kpis" id="kpis"></div>
+
+      <hr/>
+      <div class="table-wrap">
         <table id="tbl">
-          <thead id="thead"></thead>
+          <thead><tr id="theadRow"></tr></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
-    </section>
-  </main>
+      <p class="muted small" id="countInfo" style="margin-top:10px"></p>
+    </div>
+  </div>
 
-  <script src="detail.js"></script>
+<script type="module" src="detail.js"></script>
 </body>
 </html>
