@@ -18,6 +18,17 @@ document.getElementById("logoutBtn").addEventListener("click", logout);
 document.getElementById("backBtn").addEventListener("click", () => history.back());
 
 let DATA = [];
+const OVERRIDE_KEY = "mitteleinsatz_data_override_v1";
+function loadOverride(){
+  try{ const raw = localStorage.getItem(OVERRIDE_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+async function loadData(){
+  const ov = loadOverride();
+  if (ov && Array.isArray(ov) && ov.length) return ov;
+  const res = await fetch("./data.json", { cache: "no-store" });
+  return await res.json();
+}
+
 let COLUMNS = [];
 
 const ROUND_COLS = ["Menge/ha", "gesN ha", "NH4 ha", "P ha", "K ha", "S pro ha"];
@@ -174,8 +185,7 @@ function downloadCsv() {
 }
 
 async function init() {
-  const res = await fetch("./data.json", { cache: "no-store" });
-  DATA = await res.json();
+  DATA = await loadData();
 
   const first = DATA[0] || {};
   const present = new Set(Object.keys(first));

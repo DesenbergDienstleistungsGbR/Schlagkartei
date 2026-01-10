@@ -79,3 +79,6 @@ th{position:sticky;top:0;background:#0e1c38;text-align:left;color:var(--muted)}
 .kpi{background:#0b1730;border:1px solid var(--border);border-radius:14px;padding:10px}
 .kpi .v{font-size:18px;font-weight:800;margin-top:6px}
 .error{color:var(--danger);margin-top:8px}
+
+
+#excelFile{max-width:360px}
