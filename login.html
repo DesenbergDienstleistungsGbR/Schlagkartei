@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login – Mitteleinsatz</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container narrow">
+    <h1>Login</h1>
+    <p class="muted">Bitte Passwort eingeben, um die Daten zu sehen.</p>
+
+    <div class="card">
+      <label for="pw">Passwort</label>
+      <input id="pw" type="password" autocomplete="current-password" />
+      <button id="btn">Anmelden</button>
+      <p id="err" class="error" style="display:none;"></p>
+    </div>
+
+    <p class="muted small">
+      Hinweis: Dies ist ein praktischer Zugangsschutz für statisches Hosting (GitHub Pages), kein Server-Login.
+    </p>
+  </div>
+
+<script type="module">
+  import { loginWithPassword } from "./auth.js";
+  const pw = document.getElementById("pw");
+  const btn = document.getElementById("btn");
+  const err = document.getElementById("err");
+
+  const params = new URLSearchParams(location.search);
+  const next = params.get("next") || "index.html";
+
+  async function doLogin() {
+    err.style.display = "none";
+    const ok = await loginWithPassword(pw.value || "");
+    if (!ok) {
+      err.textContent = "Falsches Passwort.";
+      err.style.display = "block";
+      return;
+    }
+    window.location.href = decodeURIComponent(next);
+  }
+
+  btn.addEventListener("click", doLogin);
+  pw.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+</script>
+</body>
+</html>
