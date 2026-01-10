@@ -23,6 +23,9 @@ let COLUMNS = [];
 const ROUND_COLS = ["Menge/ha", "gesN ha", "NH4 ha", "P ha", "K ha", "S pro ha"];
 const SUM_COLS = ["gesN ha", "NH4 ha", "P ha", "K ha", "S pro ha"];
 
+
+const COLUMN_ORDER = ["Schlag", "Datum", "bearbeitete Fläche", "Artikel", "Menge/ha", "E", "Art", "Frucht", "E_Jahr", "gesN ha", "NH4 ha", "P ha", "K ha", "S pro ha", "Firma", "wasserschutzgeb"];
+
 function uniqSorted(arr) {
   const s = new Set(arr.filter(v => v !== null && v !== undefined && String(v).trim() !== ""));
   return Array.from(s).sort((a,b) => String(a).localeCompare(String(b), "de", {numeric:true, sensitivity:"base"}));
@@ -174,7 +177,11 @@ async function init() {
   const res = await fetch("./data.json", { cache: "no-store" });
   DATA = await res.json();
 
-  COLUMNS = Object.keys(DATA[0] || {});
+  const first = DATA[0] || {};
+  const present = new Set(Object.keys(first));
+  const ordered = COLUMN_ORDER.filter(c => present.has(c));
+  const rest = Object.keys(first).filter(c => !ordered.includes(c));
+  COLUMNS = [...ordered, ...rest];
   buildHeader();
 
   setOptions(yearSel, uniqSorted(DATA.map(r => r["E_Jahr"])), "Alle Erntejahre");
