@@ -2,9 +2,11 @@ import { requireAuth, logout } from "./auth.js";
 requireAuth();
 
 const yearSel = document.getElementById("yearSel");
+const ALL_FIRMS_VALUE="__ALL__";
 const firmaSel = document.getElementById("firmaSel");
 const fruchtSel = document.getElementById("fruchtSel");
 const schlagList = document.getElementById("schlagList");
+const listSummary = document.getElementById("listSummary");
 const countBadge = document.getElementById("countBadge");
 document.getElementById("logoutBtn").addEventListener("click", logout);
 
@@ -43,31 +45,56 @@ function setOptions(sel, values, placeholder="Bitte wählen…") {
 }
 
 function filterRows() {
-  const y = yearSel.value, f = firmaSel.value, fr = fruchtSel.value;
-  return DATA.filter(r =>
-    (!y || String(r["E_Jahr"]) === y) &&
-    (!f || String(r["Firma"]) === f) &&
-    (!fr || String(r["Frucht"]) === fr)
-  );
+  const y = yearSel.value;
+  const f = firmaSel.value;
+  const fr = fruchtSel.value;
+
+  if (!y) return [];
+
+  let rows = DATA.filter(r => String(r["E_Jahr"]) === String(y));
+  if (f && f !== ALL_FIRMS_VALUE) rows = rows.filter(r => String(r["Firma"]) === String(f));
+  if (fr) rows = rows.filter(r => String(r["Frucht"]) === String(fr));
+  return rows;
+}
+
+function refreshDependentOptions(){
+  const y = yearSel.value;
+  if (!y){
+    setOptionsWithFirst(firmaSel, uniqSorted(DATA.map(r => r["Firma"])), "Alle Firmen", ALL_FIRMS_VALUE);
+    setOptionsWithFirst(fruchtSel, uniqSorted(DATA.map(r => r["Frucht"])), "Frucht (optional)", "");
+    firmaSel.value = ALL_FIRMS_VALUE;
+    fruchtSel.value = "";
+    return;
+  }
+  const base = DATA.filter(r => String(r["E_Jahr"]) === String(y));
+  setOptionsWithFirst(firmaSel, uniqSorted(base.map(r => r["Firma"])), "Alle Firmen", ALL_FIRMS_VALUE);
+  setOptionsWithFirst(fruchtSel, uniqSorted(base.map(r => r["Frucht"])), "Frucht (optional)", "");
+  if (!Array.from(firmaSel.options).some(o => o.value === firmaSel.value)) firmaSel.value = ALL_FIRMS_VALUE;
+  if (!Array.from(fruchtSel.options).some(o => o.value === fruchtSel.value)) fruchtSel.value = "";
 }
 
 function renderSchlaege() {
   const y = yearSel.value, f = firmaSel.value, fr = fruchtSel.value;
   schlagList.innerHTML = "";
-  if (!y || !f || !fr) {
-    countBadge.textContent = "0 Schläge";
+  if (!y) {
+    schlagList.innerHTML = "";
+    if (listSummary) listSummary.textContent = "Bitte zuerst ein Erntejahr wählen.";
     return;
   }
   const rows = filterRows();
   const schlaege = uniqSorted(rows.map(r => r["Schlag"]));
+  const uniqNorm = new Set(schlaege.map(s => normalizeName(s)));
+  let totalArea = 0;
+  if (AREA_BY){ for (const n of uniqNorm){ totalArea += (AREA_BY.get(n) || 0); } }
+  if (listSummary){
+    listSummary.textContent = `Schläge: ${schlaege.length}` + (totalArea ? ` • Summe Schlagflächen: ${totalArea.toFixed(2)} ha` : "");
+  }
   countBadge.textContent = `${schlaege.length} Schläge`;
 
   for (const s of schlaege) {
     const rowsFor = rows.filter(r => String(r["Schlag"]) === String(s));
     const cnt = rowsFor.length;
     const fl = rowsFor.reduce((a,r) => a + (Number(String(r["bearbeitete Fläche"] ?? "").replace(",", ".")) || 0), 0);
-    const nkey = normalizeName(s);
-    const geoA = AREA_BY ? (AREA_BY.get(nkey) || 0) : 0;
 
     const li = document.createElement("li");
     const a = document.createElement("a");
@@ -79,6 +106,8 @@ function renderSchlaege() {
 
     const meta = document.createElement("div");
     meta.className = "muted small";
+    const nkey = normalizeName(s);
+    const geoA = AREA_BY ? (AREA_BY.get(nkey) || 0) : 0;
     const parts = [`${cnt} Datensätze`];
     if (geoA) parts.push(`Schlagfläche ${geoA.toFixed(2)} ha`);
     else if (fl) parts.push(`Fläche Σ ${fl.toFixed(2)} ha`);
@@ -95,9 +124,9 @@ function renderSchlaege() {
 async function init() {
   DATA = await loadData();
 
-  setOptions(yearSel, uniqSorted(DATA.map(r => r["E_Jahr"])));
-  setOptions(firmaSel, uniqSorted(DATA.map(r => r["Firma"])));
-  setOptions(fruchtSel, uniqSorted(DATA.map(r => r["Frucht"])));
+  setOptionsWithFirst(yearSel, uniqSorted(DATA.map(r => r["E_Jahr"])), "Erntejahr wählen…", "");
+  setOptionsWithFirst(firmaSel, uniqSorted(DATA.map(r => r["Firma"])), "Alle Firmen", ALL_FIRMS_VALUE);
+  setOptionsWithFirst(fruchtSel, uniqSorted(DATA.map(r => r["Frucht"])), "Frucht (optional)", "");
 
   yearSel.addEventListener("change", renderSchlaege);
   firmaSel.addEventListener("change", renderSchlaege);
@@ -157,12 +186,12 @@ async function init() {
     DATA = recs;
 
     // rebuild dropdowns from new data
-    setOptions(yearSel, uniqSorted(DATA.map(r => r["E_Jahr"])));
-    setOptions(firmaSel, uniqSorted(DATA.map(r => r["Firma"])));
-    setOptions(fruchtSel, uniqSorted(DATA.map(r => r["Frucht"])));
+    setOptionsWithFirst(yearSel, uniqSorted(DATA.map(r => r["E_Jahr"])), "Erntejahr wählen…", "");
+    setOptionsWithFirst(firmaSel, uniqSorted(DATA.map(r => r["Firma"])), "Alle Firmen", ALL_FIRMS_VALUE);
+    setOptionsWithFirst(fruchtSel, uniqSorted(DATA.map(r => r["Frucht"])), "Frucht (optional)", "");
 
     yearSel.value = "";
-    firmaSel.value = "";
+    firmaSel.value = ALL_FIRMS_VALUE;
     fruchtSel.value = "";
     renderSchlaege();
 
@@ -205,9 +234,8 @@ init();
 let MAP = null;
 let GEO = null; // GeoJSON FeatureCollection
 let LAYER = null;
-let AREA_BY = null; // Map(norm -> area_ha_sum)
+let AREA_BY = null;
 let SHOW_ALL_INFO = false;
-
 const mapHint = document.getElementById("mapHint");
 const toggleAllInfoBtn = document.getElementById("toggleAllInfoBtn");
 
@@ -232,7 +260,6 @@ function normalizeName(s){
 }
 
 function computeAreaBySchlag(){
-  // returns Map(normName -> area_ha_sum)
   const m = new Map();
   if (!GEO || !Array.isArray(GEO.features)) return m;
   for (const feat of GEO.features){
@@ -281,7 +308,7 @@ function updateMap(rows){
   const { counts, repName } = computeCounts(rows);
 
   const y = yearSel.value, f = firmaSel.value, fr = fruchtSel.value;
-  const strict = !!(y && f && fr);
+  const strict = !!y;
 
   if (LAYER) { LAYER.remove(); LAYER = null; }
 
@@ -317,7 +344,6 @@ function updateMap(rows){
     const a = Number(feat?.properties?.area_ha);
     const aTxt = isFinite(a) ? `<br/>Fläche: ${a.toFixed(2)} ha` : "";
     layer.bindPopup(`<b>${polyName || "?"}</b><br/>Datensätze: ${c}${aTxt}`);
-    // Optional: show permanent info labels
     if (SHOW_ALL_INFO) {
       const a = Number(feat?.properties?.area_ha);
       const aShort = isFinite(a) ? `\n${a.toFixed(2)} ha` : "";
@@ -368,10 +394,10 @@ renderSchlaege = function(){
     setMapHint("Karte konnte nicht geladen werden: " + (e?.message || e));
   }
 })();
-// Toggle: show info labels for all polygons
+
+
 toggleAllInfoBtn?.addEventListener("click", () => {
   SHOW_ALL_INFO = !SHOW_ALL_INFO;
   toggleAllInfoBtn.textContent = SHOW_ALL_INFO ? "Infos aller Schläge ausblenden" : "Infos aller Schläge einblenden";
-  // Re-render map to (un)bind tooltips
   updateMap(filterRows());
 });
