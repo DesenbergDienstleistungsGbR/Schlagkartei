@@ -3,6 +3,10 @@ import { requireAuth, logout } from "./auth.js";
 
 const ALL_FIRMS_VALUE = "__ALL__";
 const ALL_CROPS_VALUE = "__ALL__";
+const PLAN_KEY = "schlagkartei_plan_v1";
+const ALL_PLANNED_VALUE = "__ALL__";
+const NONE_PLANNED_VALUE = "__NONE__";
+
 
 let DATA = [];
 let GEO = null;
@@ -10,6 +14,7 @@ let GEO = null;
 const selYear = document.getElementById("selYear");
 const selFirm = document.getElementById("selFirm");
 const selCrop = document.getElementById("selCrop");
+const selPlanned = document.getElementById("selPlanned");
 const fieldList = document.getElementById("fieldList");
 const kpiCount = document.getElementById("kpiCount");
 const kpiHa = document.getElementById("kpiHa");
@@ -17,6 +22,38 @@ const statusEl = document.getElementById("status");
 const btnToggleAll = document.getElementById("btnToggleAll");
 
 document.getElementById("btnLogout").onclick = () => logout();
+
+
+function normalizeName(s) {
+  // Robust für Matching (Umlaute, Sonderzeichen, Leerzeichen)
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function loadPlan() {
+  try {
+    const raw = localStorage.getItem(PLAN_KEY);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === "object") ? obj : {};
+  } catch {
+    return {};
+  }
+}
+
+function getPlannedCropFor(fieldName, year) {
+  if (!year) return "";
+  const plan = loadPlan();
+  const y = plan[String(year)] || {};
+  const key = normalizeName(fieldName);
+  return y[key] || "";
+}
 
 function uniqSorted(arr) {
   return Array.from(new Set(arr.filter(v => v !== null && v !== undefined && String(v).trim() !== "")))
@@ -51,7 +88,8 @@ function getCurrentFilters() {
   const year = selYear.value ? Number(selYear.value) : null;
   const firm = selFirm.value || ALL_FIRMS_VALUE;
   const crop = selCrop.value || ALL_CROPS_VALUE;
-  return { year, firm, crop };
+    const planned = selPlanned.value || ALL_PLANNED_VALUE;
+  return { year, firm, crop, planned };
 }
 
 function filteredData() {
@@ -79,10 +117,16 @@ let map, geoLayer, popupLayer;
 let showAllPopups = false;
 
 function calcAreaHaForField(fieldName) {
-  if (!GEO) return null;
-  const fNorm = (s)=> String(s||"").toLowerCase();
-  const feats = GEO.features.filter(ft => fNorm(ft.properties?.sl_name) === fNorm(fieldName));
+  if (!GEO || !GEO.features) return null;
+  const key = normalizeName(fieldName);
+
+  const feats = GEO.features.filter(ft => {
+    const p = ft.properties || {};
+    const k = p.sl_name_norm ? String(p.sl_name_norm) : normalizeName(p.sl_name || p.name || "");
+    return k === key;
+  });
   if (!feats.length) return null;
+
   // Sum area_ha if present
   let sum = 0;
   let ok = false;
@@ -104,7 +148,7 @@ function updateKpis(fields) {
   kpiHa.textContent = ok ? sum.toFixed(2) : "0.00";
 }
 
-function renderFieldList(fields) {
+function renderFieldList(fields, year) {
   fieldList.innerHTML = "";
   for (const f of fields) {
     const ha = calcAreaHaForField(f.name);
@@ -112,7 +156,7 @@ function renderFieldList(fields) {
     div.className = "list-item";
     div.innerHTML = `
       <div><b>${f.name}</b></div>
-      <div class="small">${f.count} Datensätze ${ha !== null ? "• " + ha.toFixed(2) + " ha" : ""}</div>
+      <div class="small">${f.count} Datensätze ${ha !== null ? "• " + ha.toFixed(2) + " ha" : ""}${(() => { const p = getPlannedCropFor(f.name, year); return p ? " • Plan: " + p : ""; })()}</div>
     `;
     div.onclick = () => {
       const { year, firm, crop } = getCurrentFilters();
@@ -128,9 +172,20 @@ function renderFieldList(fields) {
 }
 
 function refreshUI() {
+  const { year, planned } = getCurrentFilters();
   const rows = filteredData();
-  const fields = fieldsFromData(rows);
-  renderFieldList(fields);
+  let fields = fieldsFromData(rows);
+
+  // Planung-Filter auf Feldebene anwenden
+  if (planned && planned !== ALL_PLANNED_VALUE) {
+    fields = fields.filter(f => {
+      const p = getPlannedCropFor(f.name, year);
+      if (planned === NONE_PLANNED_VALUE) return !p;
+      return p === planned;
+    });
+  }
+
+  renderFieldList(fields, year);
   updateKpis(fields);
   updateMap(fields.map(x=>x.name));
 }
@@ -143,10 +198,19 @@ function buildDropdowns() {
   setOptionsWithFirst(selFirm, uniqSorted(DATA.map(r => r["Firma"])), "Alle Firmen", ALL_FIRMS_VALUE);
   setOptionsWithFirst(selCrop, uniqSorted(DATA.map(r => r["Frucht"])), "Alle Früchte", ALL_CROPS_VALUE);
 
+  // Geplante Frucht: (Alle) / (ohne Planung) / konkrete Frucht
+  const cropsForPlan = uniqSorted(DATA.map(r => r["Frucht"]));
+  setOptionsWithFirst(selPlanned, cropsForPlan, "Alle (Planung)", ALL_PLANNED_VALUE);
+  const optNone = document.createElement("option");
+  optNone.value = NONE_PLANNED_VALUE;
+  optNone.textContent = "Nur ohne Planung";
+  selPlanned.appendChild(optNone);
+
   // Default: first year
   if (years.length) selYear.value = String(years[0]);
   selFirm.value = ALL_FIRMS_VALUE;
   selCrop.value = ALL_CROPS_VALUE;
+  selPlanned.value = ALL_PLANNED_VALUE;
 }
 
 function initMap() {
@@ -223,6 +287,7 @@ function wireEvents() {
   selYear.onchange = () => refreshUI();
   selFirm.onchange = () => refreshUI();
   selCrop.onchange = () => refreshUI();
+  selPlanned.onchange = () => refreshUI();
 }
 
 function setupExcelImport() {

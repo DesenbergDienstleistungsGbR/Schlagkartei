@@ -18,6 +18,11 @@ const btnExportPlan = document.getElementById("btnExportPlan");
 const btnImportPlan = document.getElementById("btnImportPlan");
 const fileImportPlan = document.getElementById("fileImportPlan");
 const btnExportGeo = document.getElementById("btnExportGeo");
+const btnExportGeoAll = document.getElementById("btnExportGeoAll");
+const missExcelList = document.getElementById("missExcelList");
+const missGeoList = document.getElementById("missGeoList");
+const missExcelCount = document.getElementById("missExcelCount");
+const missGeoCount = document.getElementById("missGeoCount");
 const selList = document.getElementById("selList");
 const statusEl = document.getElementById("status");
 const kpiSel = document.getElementById("kpiSel");
@@ -306,6 +311,26 @@ btnExportGeo.onclick = () => {
   downloadText(`schlaege_plan_${year}.geojson`, JSON.stringify(out));
 };
 
+btnExportGeoAll.onclick = () => {
+  const plan = loadPlan();
+  const years = Object.keys(plan).filter(y => plan[y] && typeof plan[y] === "object");
+  if (!years.length) {
+    statusEl.textContent = "Keine Planung vorhanden (localStorage leer).";
+    return;
+  }
+
+  const out = JSON.parse(JSON.stringify(GEO));
+  for (const ft of out.features || []) {
+    const key = featureKey(ft);
+    if (!ft.properties) ft.properties = {};
+    for (const y of years) {
+      const crop = (plan[y] || {})[key] || "";
+      ft.properties[`plan_${y}`] = crop;
+    }
+  }
+  downloadText(`schlaege_plan_alle_jahre.geojson`, JSON.stringify(out));
+};
+
 async function main() {
   try {
     await loadData();
@@ -321,3 +346,41 @@ async function main() {
 }
 
 main();
+function renderMismatch() {
+  if (!GEO || !GEO.features || !Array.isArray(DATA)) return;
+
+  const excelKeys = new Set(DATA.map(r => normalizeName(r["Schlag"])));
+  const geoKeys = new Set((GEO.features || []).map(ft => featureKey(ft)));
+
+  const missExcel = Array.from(excelKeys).filter(k => k && !geoKeys.has(k)).sort();
+  const missGeo = Array.from(geoKeys).filter(k => k && !excelKeys.has(k)).sort();
+
+  missExcelCount.textContent = String(missExcel.length);
+  missGeoCount.textContent = String(missGeo.length);
+
+  missExcelList.innerHTML = "";
+  for (const k of missExcel.slice(0, 300)) {
+    const li = document.createElement("li");
+    li.textContent = k;
+    missExcelList.appendChild(li);
+  }
+  if (missExcel.length > 300) {
+    const li = document.createElement("li");
+    li.textContent = `… (+${missExcel.length - 300} weitere)`;
+    missExcelList.appendChild(li);
+  }
+
+  missGeoList.innerHTML = "";
+  for (const k of missGeo.slice(0, 300)) {
+    const li = document.createElement("li");
+    li.textContent = k;
+    missGeoList.appendChild(li);
+  }
+  if (missGeo.length > 300) {
+    const li = document.createElement("li");
+    li.textContent = `… (+${missGeo.length - 300} weitere)`;
+    missGeoList.appendChild(li);
+  }
+}
+
+

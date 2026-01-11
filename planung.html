@@ -51,7 +51,8 @@
         </div>
 
         <div class="row" style="margin-top:8px;">
-          <button id="btnExportGeo">GeoJSON herunterladen (mit Planung im Attribut)</button>
+          <button id="btnExportGeo">GeoJSON herunterladen (aktuelles Jahr)</button>
+          <button id="btnExportGeoAll">GeoJSON herunterladen (alle Jahre)</button>
         </div>
         <p class="small" style="margin-top:8px;">
           Hinweis: GitHub Pages kann Dateien nicht direkt speichern. Du lädst die exportierten Dateien herunter und commitest sie ins Repo.
@@ -63,6 +64,23 @@
       <label>Auswahl (Klick auf Polygon oder Name zum Entfernen)</label>
       <div class="list" id="selList"></div>
     </div>
+
+    <details style="margin-top:12px;">
+      <summary class="small">Datenprüfung (Excel ↔ GeoJSON)</summary>
+      <div style="margin-top:10px;">
+        <div class="row" style="gap:12px; align-items:flex-start;">
+          <div style="flex:1;">
+            <div class="small"><b>Schläge in Excel, aber ohne Polygon</b> (<span id="missExcelCount">0</span>)</div>
+            <ul class="small" id="missExcelList" style="max-height:180px; overflow:auto; padding-left:18px;"></ul>
+          </div>
+          <div style="flex:1;">
+            <div class="small"><b>Polygone, aber ohne Excel-Schlag</b> (<span id="missGeoCount">0</span>)</div>
+            <ul class="small" id="missGeoList" style="max-height:180px; overflow:auto; padding-left:18px;"></ul>
+          </div>
+        </div>
+        <p class="small">Hinweis: Der Abgleich erfolgt über normalisierte Namen (trim/lowercase/Umlaute/Sonderzeichen).</p>
+      </div>
+    </details>
 
     <p class="small" id="status"></p>
   </div>
