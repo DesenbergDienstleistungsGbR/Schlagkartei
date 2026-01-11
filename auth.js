@@ -1,6 +1,6 @@
 // auth.js
 const AUTH_KEY = "schlagkartei_auth_ok";
-const PASSWORD = "DEIN_PASSWORT_HIER"; // <-- BITTE ÄNDERN
+const PASSWORD = "Geheim!?"; // <-- BITTE ÄNDERN
 
 async function requireAuth() {
   if (sessionStorage.getItem(AUTH_KEY) === "1") return;
