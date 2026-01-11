@@ -66,6 +66,8 @@ function renderSchlaege() {
     const rowsFor = rows.filter(r => String(r["Schlag"]) === String(s));
     const cnt = rowsFor.length;
     const fl = rowsFor.reduce((a,r) => a + (Number(String(r["bearbeitete Fläche"] ?? "").replace(",", ".")) || 0), 0);
+    const nkey = normalizeName(s);
+    const geoA = AREA_BY ? (AREA_BY.get(nkey) || 0) : 0;
 
     const li = document.createElement("li");
     const a = document.createElement("a");
@@ -77,7 +79,10 @@ function renderSchlaege() {
 
     const meta = document.createElement("div");
     meta.className = "muted small";
-    meta.textContent = `${cnt} Datensätze` + (fl ? ` • Fläche Σ ${fl.toFixed(2)} ha` : "");
+    const parts = [`${cnt} Datensätze`];
+    if (geoA) parts.push(`Schlagfläche ${geoA.toFixed(2)} ha`);
+    else if (fl) parts.push(`Fläche Σ ${fl.toFixed(2)} ha`);
+    meta.textContent = parts.join(" • ");
 
     a.appendChild(title);
     a.appendChild(meta);
@@ -200,7 +205,11 @@ init();
 let MAP = null;
 let GEO = null; // GeoJSON FeatureCollection
 let LAYER = null;
+let AREA_BY = null; // Map(norm -> area_ha_sum)
+let SHOW_ALL_INFO = false;
+
 const mapHint = document.getElementById("mapHint");
+const toggleAllInfoBtn = document.getElementById("toggleAllInfoBtn");
 
 function setMapHint(t){ if(mapHint) mapHint.textContent = t || ""; }
 
@@ -220,6 +229,21 @@ function normalizeName(s){
     .replace(/[^a-z0-9]+/g, " ")         // unify separators
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function computeAreaBySchlag(){
+  // returns Map(normName -> area_ha_sum)
+  const m = new Map();
+  if (!GEO || !Array.isArray(GEO.features)) return m;
+  for (const feat of GEO.features){
+    const raw = String(getSchlagNameFromFeature(feat) ?? "").trim();
+    if (!raw) continue;
+    const n = normalizeName(raw);
+    const a = Number(feat?.properties?.area_ha);
+    if (!isFinite(a)) continue;
+    m.set(n, (m.get(n) || 0) + a);
+  }
+  return m;
 }
 
 function getSchlagNameFromFeature(feat){
@@ -290,7 +314,15 @@ function updateMap(rows){
     const polyName = String(getSchlagNameFromFeature(feat)).trim();
     const n = normalizeName(polyName);
     const c = counts.get(n) || 0;
-    layer.bindPopup(`<b>${polyName || "?"}</b><br/>Datensätze: ${c}`);
+    const a = Number(feat?.properties?.area_ha);
+    const aTxt = isFinite(a) ? `<br/>Fläche: ${a.toFixed(2)} ha` : "";
+    layer.bindPopup(`<b>${polyName || "?"}</b><br/>Datensätze: ${c}${aTxt}`);
+    // Optional: show permanent info labels
+    if (SHOW_ALL_INFO) {
+      const a = Number(feat?.properties?.area_ha);
+      const aShort = isFinite(a) ? `\n${a.toFixed(2)} ha` : "";
+      layer.bindTooltip(`${polyName}${aShort}`, { permanent: true, direction: "center", className: "polyLabel" });
+    }
     layer.on("click", () => {
       if (!(yearSel.value && firmaSel.value && fruchtSel.value)) return;
       const excelName = repName.get(n) || polyName; // best effort
@@ -329,9 +361,17 @@ renderSchlaege = function(){
   try{
     initMapOnce();
     GEO = await loadGeo();
+    AREA_BY = computeAreaBySchlag();
     updateMap(filterRows());
   }catch(e){
     initMapOnce();
     setMapHint("Karte konnte nicht geladen werden: " + (e?.message || e));
   }
 })();
+// Toggle: show info labels for all polygons
+toggleAllInfoBtn?.addEventListener("click", () => {
+  SHOW_ALL_INFO = !SHOW_ALL_INFO;
+  toggleAllInfoBtn.textContent = SHOW_ALL_INFO ? "Infos aller Schläge ausblenden" : "Infos aller Schläge einblenden";
+  // Re-render map to (un)bind tooltips
+  updateMap(filterRows());
+});
