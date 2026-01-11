@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Schlagkartei</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+</head>
+<body>
+<header>
+  <h1>Schlagkartei</h1>
+  <div class="row">
+    <button id="btnToggleAll" title="Infokacheln aller Schläge ein/aus">Infokacheln</button>
+    <button id="btnLogout">Logout</button>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <div class="row" style="gap:12px;">
+      <div style="flex:1;">
+        <label>Erntejahr</label>
+        <select id="selYear"></select>
+      </div>
+      <div style="flex:1;">
+        <label>Firma</label>
+        <select id="selFirm"></select>
+      </div>
+      <div style="flex:1;">
+        <label>Frucht</label>
+        <select id="selCrop"></select>
+      </div>
+    </div>
+
+    <div class="kpi" style="margin-top:12px;">
+      <div><b id="kpiCount">0</b> Schläge</div>
+      <div>Summe ha: <b id="kpiHa">0.00</b></div>
+    </div>
+
+    <div class="list" id="fieldList"></div>
+
+    <details style="margin-top:12px;">
+      <summary class="small">Excel aktualisieren (optional)</summary>
+      <div style="margin-top:10px;">
+        <input type="file" id="excelFile" accept=".xlsx" />
+        <div class="row" style="margin-top:8px;">
+          <button id="btnUseExcel">Excel einlesen</button>
+          <button id="btnDownloadJson">data.json herunterladen</button>
+          <span class="small" id="importMsg"></span>
+        </div>
+        <p class="small">Wenn du eine neue Excel einliest, werden die Daten im Browser verwendet. Mit „data.json herunterladen“ kannst du die Datei fürs Repo erzeugen.</p>
+      </div>
+    </details>
+
+    <p class="small" id="status"></p>
+  </div>
+
+  <div id="map"></div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script type="module" src="index.js"></script>
+</body>
+</html>
