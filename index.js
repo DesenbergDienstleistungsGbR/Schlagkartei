@@ -200,7 +200,6 @@ init();
 let MAP = null;
 let GEO = null; // GeoJSON FeatureCollection
 let LAYER = null;
-
 const mapHint = document.getElementById("mapHint");
 
 function setMapHint(t){ if(mapHint) mapHint.textContent = t || ""; }
@@ -211,10 +210,21 @@ async function loadGeo() {
   return await res.json();
 }
 
+function normalizeName(s){
+  return String(s ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")   // remove accents
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, " ")         // unify separators
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function getSchlagNameFromFeature(feat){
-  // In your shapefile, the field is 'sl_name' (seen in schema)
   const p = feat?.properties || {};
-  return p.sl_name ?? p.SL_NAME ?? p.schlag ?? p.SCHLAG ?? p.name ?? "";
+  return p.sl_name ?? p.SL_NAME ?? p.schlag ?? p.SCHLAG ?? p.name ?? p.NAME ?? "";
 }
 
 function initMapOnce() {
@@ -228,42 +238,47 @@ function initMapOnce() {
 }
 
 function computeCounts(rows){
-  // rows: already filtered by year/firma/frucht selection (same rows used for schlag list)
-  const counts = new Map();
+  // Build normalized count + representative Excel name
+  const counts = new Map();      // norm -> count
+  const repName = new Map();     // norm -> original Excel name
   for (const r of rows){
-    const s = String(r["Schlag"] ?? "").trim();
-    if (!s) continue;
-    counts.set(s, (counts.get(s) || 0) + 1);
+    const raw = String(r["Schlag"] ?? "").trim();
+    if (!raw) continue;
+    const n = normalizeName(raw);
+    counts.set(n, (counts.get(n) || 0) + 1);
+    if (!repName.has(n)) repName.set(n, raw);
   }
-  return counts;
+  return { counts, repName };
 }
 
 function updateMap(rows){
   if (!MAP || !GEO) return;
 
-  const counts = computeCounts(rows);
+  const { counts, repName } = computeCounts(rows);
 
-  // Build a set of relevant Schläge (only when all 3 dropdowns are selected)
   const y = yearSel.value, f = firmaSel.value, fr = fruchtSel.value;
   const strict = !!(y && f && fr);
 
   if (LAYER) { LAYER.remove(); LAYER = null; }
 
-  const features = (GEO.features || []).filter(feat => {
-    const sname = String(getSchlagNameFromFeature(feat) ?? "").trim();
-    if (!sname) return false;
-    if (!strict) return true; // show all if not fully selected
-    return counts.has(sname);
+  const feats = (GEO.features || []);
+
+  const features = feats.filter(feat => {
+    const s = String(getSchlagNameFromFeature(feat) ?? "").trim();
+    if (!s) return false;
+    if (!strict) return true;
+    const n = normalizeName(s);
+    return counts.has(n);
   });
 
-  const shown = new Set(features.map(feat => String(getSchlagNameFromFeature(feat)).trim()));
+  const shown = new Set(features.map(feat => normalizeName(getSchlagNameFromFeature(feat))));
   const maxCnt = Math.max(1, ...Array.from(counts.values()));
 
   function style(feat){
     const s = String(getSchlagNameFromFeature(feat)).trim();
-    const c = counts.get(s) || 0;
+    const n = normalizeName(s);
+    const c = counts.get(n) || 0;
     const w = 1 + (c > 0 ? 2 : 0);
-    // We don't set explicit colors; use defaults but vary opacity a bit.
     return {
       weight: w,
       opacity: 0.9,
@@ -272,16 +287,18 @@ function updateMap(rows){
   }
 
   function onEachFeature(feat, layer){
-    const s = String(getSchlagNameFromFeature(feat)).trim();
-    const c = counts.get(s) || 0;
-    layer.bindPopup(`<b>${s || "?"}</b><br/>Datensätze: ${c}`);
+    const polyName = String(getSchlagNameFromFeature(feat)).trim();
+    const n = normalizeName(polyName);
+    const c = counts.get(n) || 0;
+    layer.bindPopup(`<b>${polyName || "?"}</b><br/>Datensätze: ${c}`);
     layer.on("click", () => {
       if (!(yearSel.value && firmaSel.value && fruchtSel.value)) return;
+      const excelName = repName.get(n) || polyName; // best effort
       const qs = new URLSearchParams({
         year: yearSel.value,
         firma: firmaSel.value,
         frucht: fruchtSel.value,
-        schlag: s
+        schlag: excelName
       });
       window.location.href = `detail.html?${qs.toString()}`;
     });
@@ -295,26 +312,23 @@ function updateMap(rows){
   }catch(e){}
 
   if (!strict){
-    setMapHint("Hinweis: Wähle Erntejahr, Firma und Frucht – dann werden auf der Karte nur die passenden Schläge hervorgehoben, und Klick öffnet die Detailseite.");
+    setMapHint("Hinweis: Wähle Erntejahr, Firma und Frucht – dann werden auf der Karte nur die passenden Schläge hervorgehoben und Klick öffnet die Detailseite.");
   } else {
     setMapHint(`Karte: ${shown.size} Schläge passend zur Auswahl.`);
   }
 }
 
-// Hook into existing logic: after data load and after each selection change
+// Hook into existing logic: whenever the Schlagliste neu gerendert wird, update the map too
 const _oldRenderSchlaege = renderSchlaege;
 renderSchlaege = function(){
   _oldRenderSchlaege();
-  // rows used inside old renderSchlaege are not accessible, so compute again:
-  const rows = filterRows();
-  updateMap(rows);
+  updateMap(filterRows());
 };
 
 (async () => {
   try{
     initMapOnce();
     GEO = await loadGeo();
-    // initial update (even before selection)
     updateMap(filterRows());
   }catch(e){
     initMapOnce();
