@@ -1,31 +1,31 @@
+// Schlagkartei – Startseite
+// Reines HTML/CSS/JS – GitHub Pages kompatibel
 
-import { requireAuth, logout } from "./auth.js";
-
-const ALL_FIRMS_VALUE = "__ALL__";
-const ALL_CROPS_VALUE = "__ALL__";
 const PLAN_KEY = "schlagkartei_plan_v1";
-const ALL_PLANNED_VALUE = "__ALL__";
-const NONE_PLANNED_VALUE = "__NONE__";
-
-
-let DATA = [];
-let GEO = null;
 
 const selYear = document.getElementById("selYear");
-const selFirm = document.getElementById("selFirm");
 const selCrop = document.getElementById("selCrop");
+const selFirm = document.getElementById("selFirm");
 const selPlanned = document.getElementById("selPlanned");
 const fieldList = document.getElementById("fieldList");
 const kpiCount = document.getElementById("kpiCount");
 const kpiHa = document.getElementById("kpiHa");
-const statusEl = document.getElementById("status");
 const btnToggleAll = document.getElementById("btnToggleAll");
 
-document.getElementById("btnLogout").onclick = () => logout();
+const ALL_FIRMS_VALUE = "__ALL_FIRMS__";
+const ALL_CROPS_VALUE = "__ALL_CROPS__";
+const ALL_PLANNED_VALUE = "__ALL_PLANNED__";
+const NONE_PLANNED_VALUE = "__NONE_PLANNED__";
 
+let DATA = [];   // rows from data.json
+let GEO = null;  // geojson
+let map = null;
+let geoLayer = null;
+let popupLayer = null;
+let showAllPopups = false;
 
+// ---------- helpers ----------
 function normalizeName(s) {
-  // Robust für Matching (Umlaute, Sonderzeichen, Leerzeichen)
   return String(s || "")
     .trim()
     .toLowerCase()
@@ -34,6 +34,12 @@ function normalizeName(s) {
     .replace(/ü/g, "ue")
     .replace(/ß/g, "ss")
     .replace(/[^a-z0-9]+/g, "");
+}
+
+function fmt2(x) {
+  const n = Number(x);
+  if (!isFinite(n)) return "";
+  return n.toFixed(2);
 }
 
 function loadPlan() {
@@ -55,19 +61,10 @@ function getPlannedCropFor(fieldName, year) {
   return y[key] || "";
 }
 
-function uniqSorted(arr) {
+function uniqueSorted(arr) {
   return Array.from(new Set(arr.filter(v => v !== null && v !== undefined && String(v).trim() !== "")))
-    .sort((a,b)=> String(a).localeCompare(String(b), "de"));
-}
-
-function setOptions(sel, values) {
-  sel.innerHTML = "";
-  for (const v of values) {
-    const opt = document.createElement("option");
-    opt.value = String(v);
-    opt.textContent = String(v);
-    sel.appendChild(opt);
-  }
+    .map(v => String(v))
+    .sort((a, b) => a.localeCompare(b, "de"));
 }
 
 function setOptionsWithFirst(sel, values, firstLabel, firstValue) {
@@ -86,77 +83,137 @@ function setOptionsWithFirst(sel, values, firstLabel, firstValue) {
 
 function getCurrentFilters() {
   const year = selYear.value ? Number(selYear.value) : null;
-  const firm = selFirm.value || ALL_FIRMS_VALUE;
-  const crop = selCrop.value || ALL_CROPS_VALUE;
-    const planned = selPlanned.value || ALL_PLANNED_VALUE;
-  return { year, firm, crop, planned };
+  const crop = selCrop.value === ALL_CROPS_VALUE ? "" : selCrop.value;
+  const firm = selFirm.value === ALL_FIRMS_VALUE ? "" : selFirm.value;
+  const planned = selPlanned.value || ALL_PLANNED_VALUE;
+  return { year, crop, firm, planned };
+}
+
+// ---------- data loading ----------
+async function loadDataFromJson() {
+  const resp = await fetch("data.json", { cache: "no-store" });
+  if (!resp.ok) throw new Error("Konnte data.json nicht laden");
+  DATA = await resp.json();
+}
+
+async function loadGeoJson() {
+  const resp = await fetch("schlaege.geojson", { cache: "no-store" });
+  if (!resp.ok) throw new Error("Konnte schlaege.geojson nicht laden");
+  GEO = await resp.json();
+}
+
+function buildDropdowns() {
+  const years = uniqueSorted(DATA.map(r => r["Erntejahr"]));
+  // years descending
+  years.sort((a,b) => Number(b) - Number(a));
+  setOptionsWithFirst(selYear, years, "Erntejahr wählen", "");
+
+  setOptionsWithFirst(selFirm, uniqueSorted(DATA.map(r => r["Firma"])), "Alle Firmen", ALL_FIRMS_VALUE);
+  setOptionsWithFirst(selCrop, uniqueSorted(DATA.map(r => r["Frucht"])), "Alle Früchte", ALL_CROPS_VALUE);
+
+  // planned filter: built from all crops, plus "ohne"
+  selPlanned.innerHTML = "";
+  const oAll = document.createElement("option");
+  oAll.value = ALL_PLANNED_VALUE;
+  oAll.textContent = "Alle (Planung)";
+  selPlanned.appendChild(oAll);
+
+  const oNone = document.createElement("option");
+  oNone.value = NONE_PLANNED_VALUE;
+  oNone.textContent = "Nur ohne Planung";
+  selPlanned.appendChild(oNone);
+
+  for (const c of uniqueSorted(DATA.map(r => r["Frucht"]))) {
+    const opt = document.createElement("option");
+    opt.value = c;
+    opt.textContent = c;
+    selPlanned.appendChild(opt);
+  }
+
+  // Defaults
+  if (years.length) selYear.value = String(years[0]);
+  selFirm.value = ALL_FIRMS_VALUE;
+  selCrop.value = ALL_CROPS_VALUE;
+  selPlanned.value = ALL_PLANNED_VALUE;
 }
 
 function filteredData() {
-  const { year, firm, crop } = getCurrentFilters();
+  const { year, crop, firm } = getCurrentFilters();
   return DATA.filter(r => {
-    if (year !== null && Number(r["E_Jahr"]) !== year) return false;
-    if (firm !== ALL_FIRMS_VALUE && String(r["Firma"]) !== firm) return false;
-    if (crop !== ALL_CROPS_VALUE && String(r["Frucht"]) !== crop) return false;
+    if (year !== null && Number(r["Erntejahr"]) !== year) return false;
+    if (crop && String(r["Frucht"]) !== crop) return false;
+    if (firm && String(r["Firma"]) !== firm) return false;
     return true;
   });
 }
 
 function fieldsFromData(rows) {
-  const map = new Map();
+  const m = new Map();
   for (const r of rows) {
-    const s = String(r["Schlag"] ?? "").trim();
-    if (!s) continue;
-    if (!map.has(s)) map.set(s, { name: s, count: 0 });
-    map.get(s).count++;
+    const name = String(r["Schlag"] || "").trim();
+    if (!name) continue;
+    const cur = m.get(name) || { name, count: 0 };
+    cur.count += 1;
+    m.set(name, cur);
   }
-  return Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name,"de"));
+  return Array.from(m.values()).sort((a,b) => a.name.localeCompare(b.name, "de"));
 }
 
-let map, geoLayer, popupLayer;
-let showAllPopups = false;
-
 function calcAreaHaForField(fieldName) {
-  if (!GEO || !GEO.features) return null;
+  if (!GEO?.features?.length) return null;
   const key = normalizeName(fieldName);
 
-  const feats = GEO.features.filter(ft => {
-    const p = ft.properties || {};
-    const k = p.sl_name_norm ? String(p.sl_name_norm) : normalizeName(p.sl_name || p.name || "");
-    return k === key;
-  });
-  if (!feats.length) return null;
-
-  // Sum area_ha if present
   let sum = 0;
   let ok = false;
-  for (const ft of feats) {
-    const a = ft.properties?.area_ha;
+
+  for (const ft of GEO.features) {
+    const p = ft.properties || {};
+    const k = p.sl_name_norm ? String(p.sl_name_norm) : normalizeName(p.sl_name || p.name || "");
+    if (k !== key) continue;
+    const a = p.area_ha;
     if (typeof a === "number" && isFinite(a)) { sum += a; ok = true; }
   }
   return ok ? sum : null;
 }
 
-function updateKpis(fields) {
-  kpiCount.textContent = String(fields.length);
-  let sum = 0;
-  let ok = false;
-  for (const f of fields) {
-    const ha = calcAreaHaForField(f.name);
-    if (ha !== null) { sum += ha; ok = true; }
-  }
-  kpiHa.textContent = ok ? sum.toFixed(2) : "0.00";
+// ---------- planning colors ----------
+const PALETTE = [
+  "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+  "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+  "#393b79", "#637939", "#8c6d31", "#843c39", "#7b4173"
+];
+
+function hashString(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i);
+  return Math.abs(h);
 }
 
+function colorForPlannedCrop(plannedCrop) {
+  if (!plannedCrop) return "#cfcfcf";
+  const idx = hashString(String(plannedCrop)) % PALETTE.length;
+  return PALETTE[idx];
+}
+
+// ---------- UI rendering ----------
 function renderFieldList(fields, year) {
   fieldList.innerHTML = "";
   for (const f of fields) {
     const ha = calcAreaHaForField(f.name);
+    const plan = getPlannedCropFor(f.name, year);
+    const color = colorForPlannedCrop(plan);
+
     const div = document.createElement("div");
     div.className = "list-item";
     div.innerHTML = `
-      <div><b>${f.name}</b></div>
-      <div class="small">${f.count} Datensätze ${ha !== null ? "• " + ha.toFixed(2) + " ha" : ""}${(() => { const p = getPlannedCropFor(f.name, year); return p ? " • Plan: " + p : ""; })()}</div>
+      <div style="display:flex; gap:8px; align-items:center; justify-content:space-between;">
+        <div><b>${f.name}</b></div>
+        <div class="chip" style="background:${color};">${plan ? plan : "—"}</div>
+      </div>
+      <div class="small">
+        ${f.count} Datensätze
+        ${ha !== null ? " • " + fmt2(ha) + " ha" : " • Fläche fehlt"}
+      </div>
     `;
     div.onclick = () => {
       const { year, firm, crop } = getCurrentFilters();
@@ -171,6 +228,18 @@ function renderFieldList(fields, year) {
   }
 }
 
+function updateKPIs(fields) {
+  kpiCount.textContent = String(fields.length);
+
+  let sum = 0;
+  let ok = false;
+  for (const f of fields) {
+    const ha = calcAreaHaForField(f.name);
+    if (typeof ha === "number" && isFinite(ha)) { sum += ha; ok = true; }
+  }
+  kpiHa.textContent = ok ? sum.toFixed(2) : "0.00";
+}
+
 function refreshUI() {
   const { year, planned } = getCurrentFilters();
   const rows = filteredData();
@@ -178,41 +247,19 @@ function refreshUI() {
 
   // Planung-Filter auf Feldebene anwenden
   if (planned && planned !== ALL_PLANNED_VALUE) {
-    fields = fields.filter(f => {
-      const p = getPlannedCropFor(f.name, year);
-      if (planned === NONE_PLANNED_VALUE) return !p;
-      return p === planned;
-    });
+    if (planned === NONE_PLANNED_VALUE) {
+      fields = fields.filter(f => !getPlannedCropFor(f.name, year));
+    } else {
+      fields = fields.filter(f => getPlannedCropFor(f.name, year) === planned);
+    }
   }
 
   renderFieldList(fields, year);
-  updateKpis(fields);
-  updateMap(fields.map(x=>x.name));
+  updateKPIs(fields);
+  refreshMap(fields, year);
 }
 
-function buildDropdowns() {
-  const years = uniqSorted(DATA.map(r => r["E_Jahr"])).sort((a,b)=>Number(a)-Number(b));
-  setOptions(selYear, years);
-
-  // Firma & Frucht initial
-  setOptionsWithFirst(selFirm, uniqSorted(DATA.map(r => r["Firma"])), "Alle Firmen", ALL_FIRMS_VALUE);
-  setOptionsWithFirst(selCrop, uniqSorted(DATA.map(r => r["Frucht"])), "Alle Früchte", ALL_CROPS_VALUE);
-
-  // Geplante Frucht: (Alle) / (ohne Planung) / konkrete Frucht
-  const cropsForPlan = uniqSorted(DATA.map(r => r["Frucht"]));
-  setOptionsWithFirst(selPlanned, cropsForPlan, "Alle (Planung)", ALL_PLANNED_VALUE);
-  const optNone = document.createElement("option");
-  optNone.value = NONE_PLANNED_VALUE;
-  optNone.textContent = "Nur ohne Planung";
-  selPlanned.appendChild(optNone);
-
-  // Default: first year
-  if (years.length) selYear.value = String(years[0]);
-  selFirm.value = ALL_FIRMS_VALUE;
-  selCrop.value = ALL_CROPS_VALUE;
-  selPlanned.value = ALL_PLANNED_VALUE;
-}
-
+// ---------- leaflet map ----------
 function initMap() {
   map = L.map("map");
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -222,106 +269,131 @@ function initMap() {
 
   popupLayer = L.layerGroup().addTo(map);
 
-  fetch("./schlaege.geojson")
-    .then(r => r.json())
-    .then(g => {
-      GEO = g;
-      geoLayer = L.geoJSON(GEO, {
-        style: { weight: 1, fillOpacity: 0.25 },
-        onEachFeature: (feature, layer) => {
-          const name = feature?.properties?.sl_name || feature?.properties?.name || "";
-          layer.bindTooltip(String(name), { sticky: true });
-          layer.on("click", () => {
-            if (name) {
-              const { year, firm, crop } = getCurrentFilters();
-              const params = new URLSearchParams();
-              if (year !== null) params.set("year", String(year));
-              if (firm) params.set("firm", firm);
-              if (crop) params.set("crop", crop);
-              params.set("field", name);
-              window.location.href = "detail.html?" + params.toString();
-            }
-          });
-        }
-      }).addTo(map);
+  geoLayer = L.geoJSON(GEO, {
+    style: () => ({
+      color: "#2b2b2b",
+      weight: 1,
+      fillOpacity: 0.15,
+      opacity: 0.35,
+      fillColor: "#cfcfcf"
+    }),
+    onEachFeature: (feature, layer) => {
+      const p = feature.properties || {};
+      const name = p.sl_name || p.name || "";
+      layer.on("click", () => {
+        const { year, firm, crop } = getCurrentFilters();
+        const params = new URLSearchParams();
+        if (year !== null) params.set("year", String(year));
+        if (firm) params.set("firm", firm);
+        if (crop) params.set("crop", crop);
+        params.set("field", String(name));
+        window.location.href = "detail.html?" + params.toString();
+      });
+      if (name) layer.bindTooltip(String(name), { sticky: true });
+    }
+  }).addTo(map);
 
-      try { map.fitBounds(geoLayer.getBounds(), { padding:[20,20] }); } catch {}
-      refreshUI();
-    })
-    .catch(err => {
-      console.error(err);
-      statusEl.textContent = "GeoJSON konnte nicht geladen werden.";
-    });
-
-  btnToggleAll.onclick = () => {
-    showAllPopups = !showAllPopups;
-    refreshUI();
-  };
+  // initial view
+  try {
+    map.fitBounds(geoLayer.getBounds(), { padding: [12, 12] });
+  } catch {}
 }
 
-function updateMap(activeFieldNames) {
-  if (!geoLayer || !GEO) return;
-  const active = new Set(activeFieldNames.map(s => String(s).toLowerCase()));
+function refreshMap(fields, year) {
+  if (!geoLayer) return;
+
+  // Active keys are normalized names of fields that are currently in list
+  const activeKeys = new Set(fields.map(f => normalizeName(f.name)));
+
   popupLayer.clearLayers();
 
   geoLayer.eachLayer(layer => {
-    const name = String(layer.feature?.properties?.sl_name || "").toLowerCase();
-    const isOn = active.has(name);
-    layer.setStyle({ fillOpacity: isOn ? 0.45 : 0.05, opacity: isOn ? 1.0 : 0.3 });
+    const p = layer.feature?.properties || {};
+    const name = String(p.sl_name || p.name || "");
+    const key = p.sl_name_norm ? String(p.sl_name_norm) : normalizeName(name);
+    const isActive = activeKeys.has(key);
+
+    const plan = getPlannedCropFor(name, year);
+    const fillColor = colorForPlannedCrop(plan);
+
+    layer.setStyle({
+      fillColor: fillColor,
+      fillOpacity: isActive ? 0.55 : 0.08,
+      opacity: isActive ? 0.9 : 0.25,
+      weight: isActive ? 1.5 : 1.0
+    });
 
     if (showAllPopups && layer.getBounds) {
-      const c = layer.getBounds().getCenter();
-      L.marker(c, { opacity: 0.0 }).bindTooltip(layer.feature?.properties?.sl_name || "", { permanent:true, direction:"center", className:"badge" })
-        .addTo(popupLayer)
-        .openTooltip();
+      const center = layer.getBounds().getCenter();
+      const lbl = p.sl_name || p.name || "";
+      if (lbl) {
+        L.marker(center, { opacity: 0.0 })
+          .bindTooltip(String(lbl), { permanent: true, direction: "center", className: "badge" })
+          .addTo(popupLayer)
+          .openTooltip();
+      }
     }
   });
 }
 
-async function loadDataFromJson() {
-  const r = await fetch("./data.json", { cache: "no-store" });
-  DATA = await r.json();
-}
-
+// ---------- events ----------
 function wireEvents() {
-  selYear.onchange = () => refreshUI();
-  selFirm.onchange = () => refreshUI();
-  selCrop.onchange = () => refreshUI();
-  selPlanned.onchange = () => refreshUI();
+  selYear.addEventListener("change", refreshUI);
+  selCrop.addEventListener("change", refreshUI);
+  selFirm.addEventListener("change", refreshUI);
+  selPlanned.addEventListener("change", refreshUI);
+
+  btnToggleAll?.addEventListener("click", () => {
+    showAllPopups = !showAllPopups;
+    refreshUI();
+  });
+
+  // cross-tab plan changes
+  window.addEventListener("storage", (e) => {
+    if (e.key === PLAN_KEY) refreshUI();
+  });
 }
 
+// ---------- optional: excel import (existing UI) ----------
 function setupExcelImport() {
-  const inp = document.getElementById("excelFile");
-  const msg = document.getElementById("importMsg");
-  let lastJson = null;
+  const fileInput = document.getElementById("excelFile");
+  const btnParse = document.getElementById("btnParseExcel");
+  const btnDownload = document.getElementById("btnDownloadJson");
+  const importStatus = document.getElementById("importStatus");
 
-  document.getElementById("btnUseExcel").onclick = async () => {
-    const f = inp.files?.[0];
-    if (!f) { msg.textContent = "Bitte Excel auswählen."; return; }
+  if (!fileInput || !btnParse || !btnDownload) return;
+
+  // If the original project already shipped a XLSX import, keep it.
+  // Here we only show a hint if not present (no hard dependency).
+  try {
+    if (typeof XLSX === "undefined") {
+      importStatus.textContent = "Hinweis: XLSX-Library nicht geladen – Excel-Import ist deaktiviert.";
+      btnParse.disabled = true;
+      btnDownload.disabled = true;
+      return;
+    }
+  } catch {}
+
+  let parsed = null;
+
+  btnParse.onclick = async () => {
+    const f = fileInput.files?.[0];
+    if (!f) { importStatus.textContent = "Bitte Excel-Datei wählen."; return; }
+    importStatus.textContent = "Lese Excel…";
+
     const buf = await f.arrayBuffer();
     const wb = XLSX.read(buf, { type: "array" });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
-    // Runde Werte
-    const roundKeys = ["Menge/ha","gesN ha","NH4 ha","P ha","K ha","S pro ha"];
-    for (const r of rows) {
-      for (const k of roundKeys) {
-        if (r[k] !== null && r[k] !== undefined && r[k] !== "") {
-          const n = Number(r[k]);
-          r[k] = Number.isFinite(n) ? Math.round(n*100)/100 : null;
-        }
-      }
-    }
-    DATA = rows;
-    lastJson = JSON.stringify(DATA, null, 0);
-    msg.textContent = `Excel geladen: ${rows.length} Datensätze.`;
-    buildDropdowns();
-    refreshUI();
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+    parsed = rows;
+    importStatus.textContent = `Gelesen: ${rows.length} Zeilen. (Hinweis: Export-Rundung/Mapping bitte wie im bestehenden Import umsetzen.)`;
+    btnDownload.disabled = false;
   };
 
-  document.getElementById("btnDownloadJson").onclick = () => {
-    const txt = lastJson || JSON.stringify(DATA, null, 0);
-    const blob = new Blob([txt], { type: "application/json" });
+  btnDownload.onclick = () => {
+    if (!parsed) return;
+    const blob = new Blob([JSON.stringify(parsed, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "data.json";
@@ -332,6 +404,7 @@ function setupExcelImport() {
 async function init() {
   requireAuth();
   await loadDataFromJson();
+  await loadGeoJson();
   buildDropdowns();
   wireEvents();
   initMap();
