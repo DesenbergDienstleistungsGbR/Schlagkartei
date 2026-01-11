@@ -196,3 +196,128 @@ async function init() {
 }
 
 init();
+// --- Map (Leaflet) ---
+let MAP = null;
+let GEO = null; // GeoJSON FeatureCollection
+let LAYER = null;
+
+const mapHint = document.getElementById("mapHint");
+
+function setMapHint(t){ if(mapHint) mapHint.textContent = t || ""; }
+
+async function loadGeo() {
+  const res = await fetch("./schlaege.geojson", { cache: "no-store" });
+  if (!res.ok) throw new Error("schlaege.geojson nicht gefunden (Status " + res.status + ")");
+  return await res.json();
+}
+
+function getSchlagNameFromFeature(feat){
+  // In your shapefile, the field is 'sl_name' (seen in schema)
+  const p = feat?.properties || {};
+  return p.sl_name ?? p.SL_NAME ?? p.schlag ?? p.SCHLAG ?? p.name ?? "";
+}
+
+function initMapOnce() {
+  if (MAP) return;
+  MAP = L.map("map", { preferCanvas: true });
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 20,
+    attribution: "&copy; OpenStreetMap"
+  }).addTo(MAP);
+  MAP.setView([53.2, 9.0], 11); // fallback
+}
+
+function computeCounts(rows){
+  // rows: already filtered by year/firma/frucht selection (same rows used for schlag list)
+  const counts = new Map();
+  for (const r of rows){
+    const s = String(r["Schlag"] ?? "").trim();
+    if (!s) continue;
+    counts.set(s, (counts.get(s) || 0) + 1);
+  }
+  return counts;
+}
+
+function updateMap(rows){
+  if (!MAP || !GEO) return;
+
+  const counts = computeCounts(rows);
+
+  // Build a set of relevant Schläge (only when all 3 dropdowns are selected)
+  const y = yearSel.value, f = firmaSel.value, fr = fruchtSel.value;
+  const strict = !!(y && f && fr);
+
+  if (LAYER) { LAYER.remove(); LAYER = null; }
+
+  const features = (GEO.features || []).filter(feat => {
+    const sname = String(getSchlagNameFromFeature(feat) ?? "").trim();
+    if (!sname) return false;
+    if (!strict) return true; // show all if not fully selected
+    return counts.has(sname);
+  });
+
+  const shown = new Set(features.map(feat => String(getSchlagNameFromFeature(feat)).trim()));
+  const maxCnt = Math.max(1, ...Array.from(counts.values()));
+
+  function style(feat){
+    const s = String(getSchlagNameFromFeature(feat)).trim();
+    const c = counts.get(s) || 0;
+    const w = 1 + (c > 0 ? 2 : 0);
+    // We don't set explicit colors; use defaults but vary opacity a bit.
+    return {
+      weight: w,
+      opacity: 0.9,
+      fillOpacity: c > 0 ? Math.min(0.65, 0.15 + (c / maxCnt) * 0.5) : 0.06
+    };
+  }
+
+  function onEachFeature(feat, layer){
+    const s = String(getSchlagNameFromFeature(feat)).trim();
+    const c = counts.get(s) || 0;
+    layer.bindPopup(`<b>${s || "?"}</b><br/>Datensätze: ${c}`);
+    layer.on("click", () => {
+      if (!(yearSel.value && firmaSel.value && fruchtSel.value)) return;
+      const qs = new URLSearchParams({
+        year: yearSel.value,
+        firma: firmaSel.value,
+        frucht: fruchtSel.value,
+        schlag: s
+      });
+      window.location.href = `detail.html?${qs.toString()}`;
+    });
+  }
+
+  LAYER = L.geoJSON({ type: "FeatureCollection", features }, { style, onEachFeature }).addTo(MAP);
+
+  try{
+    const b = LAYER.getBounds();
+    if (b.isValid()) MAP.fitBounds(b.pad(0.15));
+  }catch(e){}
+
+  if (!strict){
+    setMapHint("Hinweis: Wähle Erntejahr, Firma und Frucht – dann werden auf der Karte nur die passenden Schläge hervorgehoben, und Klick öffnet die Detailseite.");
+  } else {
+    setMapHint(`Karte: ${shown.size} Schläge passend zur Auswahl.`);
+  }
+}
+
+// Hook into existing logic: after data load and after each selection change
+const _oldRenderSchlaege = renderSchlaege;
+renderSchlaege = function(){
+  _oldRenderSchlaege();
+  // rows used inside old renderSchlaege are not accessible, so compute again:
+  const rows = filterRows();
+  updateMap(rows);
+};
+
+(async () => {
+  try{
+    initMapOnce();
+    GEO = await loadGeo();
+    // initial update (even before selection)
+    updateMap(filterRows());
+  }catch(e){
+    initMapOnce();
+    setMapHint("Karte konnte nicht geladen werden: " + (e?.message || e));
+  }
+})();

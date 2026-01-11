@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Mitteleinsatz – Auswahl</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
   <div class="container">
@@ -38,6 +39,12 @@
       <ul class="list" id="schlagList"></ul>
 
 <hr/>
+      <h2>Karte</h2>
+      <p class="muted">Polygone (Schläge) werden nach deiner Auswahl angezeigt. Klick auf ein Polygon öffnet die Detailseite.</p>
+      <div id="map" class="map"></div>
+      <p class="muted small" id="mapHint"></p>
+
+<hr/>
       <h2>Daten aktualisieren (Excel)</h2>
       <p class="muted">
         Du kannst hier eine neue Excel-Datei auswählen. Die Website nutzt dann diese Daten (nur in deinem Browser).
@@ -54,6 +61,7 @@
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module" src="index.js"></script>
 </body>
 </html>

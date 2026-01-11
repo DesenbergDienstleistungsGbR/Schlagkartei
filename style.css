@@ -82,3 +82,6 @@ th{position:sticky;top:0;background:#0e1c38;text-align:left;color:var(--muted)}
 
 
 #excelFile{max-width:360px}
+
+
+.map{height:520px; border:1px solid var(--border); border-radius:14px; overflow:hidden}
