@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Schlag – Details</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="row" style="justify-content:space-between">
+      <div class="row" style="gap:10px; align-items:baseline;">
+        <a href="index.html" class="secondary" style="text-decoration:none; padding:10px 12px; border-radius:12px;">← Zurück</a>
+        <h1 id="title" style="margin:0;">Schlag</h1>
+      </div>
+      <div class="row">
+        <button class="secondary" id="logoutBtn">Logout</button>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:14px;">
+      <div class="card">
+        <h2 style="margin-top:0;">Übersicht</h2>
+        <table class="table" id="metaTbl"></table>
+      </div>
+      <div class="card">
+        <div id="map" style="height:520px; border-radius:14px; overflow:hidden;"></div>
+      </div>
+    </div>
+  </div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module" src="detail.js"></script>
+</body>
+</html>
