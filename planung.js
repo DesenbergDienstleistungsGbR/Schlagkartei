@@ -1,230 +1,50 @@
-(async () => {
-  await requireAuth();
 import { requireAuth, logout } from "./auth.js";
 
-// Planung wird clientseitig gespeichert (localStorage) und kann als JSON exportiert/importiert werden.
-// Struktur:
-// {
-//   "2026": { "<field_key>": "Weizen", ... },
-//   "2025": { ... }
-// }
-const PLAN_KEY = "schlagkartei_plan_v1";
+// Schritt 2: Planung bearbeiten -> Export anbau_plan.json (kein Backend)
 
-
-async function loadPlanJson() {
-  const r = await fetch("./anbau_plan.json", { cache: "no-store" });
-  return await r.json();
-}
+let PLAN = null; // gesamtes JSON
+let GEO = null;  // GeoJSON
+let map = null;
+let geoLayer = null;
+let selectedKeys = new Set(); // normalize(label) keys selected on map/list
 
 const selYear = document.getElementById("selYear");
-const selPlanCrop = document.getElementById("selPlanCrop");
-const btnApply = document.getElementById("btnApply");
-const btnClearSel = document.getElementById("btnClearSel");
-const btnExportPlan = document.getElementById("btnExportPlan");
-const btnImportPlan = document.getElementById("btnImportPlan");
-const fileImportPlan = document.getElementById("fileImportPlan");
-const btnExportGeo = document.getElementById("btnExportGeo");
-const btnExportGeoAll = document.getElementById("btnExportGeoAll");
-const missExcelList = document.getElementById("missExcelList");
-const missGeoList = document.getElementById("missGeoList");
-const missExcelCount = document.getElementById("missExcelCount");
-const missGeoCount = document.getElementById("missGeoCount");
-const selList = document.getElementById("selList");
-const statusEl = document.getElementById("status");
-const kpiSel = document.getElementById("kpiSel");
-const kpiPlanned = document.getElementById("kpiPlanned");
-
-document.getElementById("btnLogout").onclick = () => logout();
-
-let DATA = [];
-let GEO = null;
-
-let map, geoLayer;
-
-// Auswahl verwalten (fieldKey)
-const selected = new Set();
+const selCrop = document.getElementById("selPlanCrop");
+const btnAssign = document.getElementById("btnAssign");
+const btnExport = document.getElementById("btnExportPlan");
+const btnImport = document.getElementById("btnImportPlan");
+const fileImport = document.getElementById("fileImportPlan");
+const listEl = document.getElementById("planList");
+const infoEl = document.getElementById("planInfo");
+const btnLogout = document.getElementById("btnLogout");
 
 function normalizeName(s) {
-  // robuste Normalisierung (sollte zu sl_name_norm passen)
   return String(s ?? "")
     .trim()
     .toLowerCase()
-    .replace(/ä/g, "ae")
-    .replace(/ö/g, "oe")
-    .replace(/ü/g, "ue")
-    .replace(/ß/g, "ss")
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "");
+    .replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss")
+    .replace(/[^a-z0-9]+/g,"");
 }
 
 function uniqSorted(arr) {
-  return Array.from(new Set(arr.filter(v => v !== null && v !== undefined && String(v).trim() !== "")))
-    .sort((a, b) => String(a).localeCompare(String(b), "de"));
+  return Array.from(new Set(arr.filter(v => v !== null && v !== undefined && String(v).trim() !== "").map(v => String(v).trim())))
+    .sort((a,b)=>a.localeCompare(b,"de"));
 }
 
-function setOptions(sel, values, firstLabel = null, firstValue = null) {
-  sel.innerHTML = "";
-  if (firstLabel !== null) {
-    const o0 = document.createElement("option");
-    o0.textContent = firstLabel;
-    o0.value = firstValue;
-    sel.appendChild(o0);
+async function loadPlan() {
+  const r = await fetch("./anbau_plan.json", { cache: "no-store" });
+  PLAN = await r.json();
+  if (!PLAN.plan) PLAN.plan = {};
+  if (!Array.isArray(PLAN.years)) {
+    PLAN.years = Object.keys(PLAN.plan).map(Number).filter(n=>Number.isFinite(n)).sort((a,b)=>a-b);
   }
-  for (const v of values) {
-    const opt = document.createElement("option");
-    opt.value = String(v);
-    opt.textContent = String(v);
-    sel.appendChild(opt);
+  if (!Array.isArray(PLAN.crops)) {
+    const crops = [];
+    for (const arr of Object.values(PLAN.plan)) for (const u of (arr||[])) crops.push(u?.crop);
+    PLAN.crops = uniqSorted(crops);
   }
-}
-
-function loadPlan() {
-  try {
-    const raw = localStorage.getItem(PLAN_KEY);
-    if (!raw) return {};
-    const obj = JSON.parse(raw);
-    return obj && typeof obj === "object" ? obj : {};
-  } catch {
-    return {};
-  }
-}
-
-function savePlan() {
-  // Schritt 1: keine Speicherung im Browser.
-}
-
-function getPlanForYear(plan, year) {
-  const y = String(year);
-  if (!plan[y] || typeof plan[y] !== "object") plan[y] = {};
-  return plan[y];
-}
-
-function downloadText(filename, text, mime = "application/json") {
-  const blob = new Blob([text], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 500);
-}
-
-function featureName(ft) {
-  return ft?.properties?.sl_name || ft?.properties?.name || "";
-}
-
-function featureKey(ft) {
-  return (
-    ft?.properties?.sl_name_norm ||
-    ft?.properties?.name_norm ||
-    normalizeName(featureName(ft))
-  );
-}
-
-function refreshKpis() {
-  kpiSel.textContent = String(selected.size);
-  const year = selYear.value;
-  const plan = loadPlan();
-  const yPlan = plan[String(year)] || {};
-  let planned = 0;
-  for (const k of Object.keys(yPlan)) {
-    if (String(yPlan[k] ?? "").trim()) planned++;
-  }
-  kpiPlanned.textContent = String(planned);
-}
-
-function refreshSelectionList() {
-  selList.innerHTML = "";
-  const year = selYear.value;
-  const plan = loadPlan();
-  const yPlan = plan[String(year)] || {};
-
-  const items = Array.from(selected);
-  items.sort((a, b) => a.localeCompare(b, "de"));
-
-  for (const key of items) {
-    const name = keyToDisplayName(key) || key;
-    const crop = yPlan[key] ? ` • <span class="badge">${escapeHtml(String(yPlan[key]))}</span>` : "";
-    const div = document.createElement("div");
-    div.className = "list-item";
-    div.innerHTML = `<div><b>${escapeHtml(name)}</b>${crop}</div><div class="small">Key: ${escapeHtml(key)}</div>`;
-    div.onclick = () => {
-      selected.delete(key);
-      refreshUI();
-    };
-    selList.appendChild(div);
-  }
-}
-
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-// Map key -> Anzeige-Name (erstellt beim Laden)
-const keyToName = new Map();
-function keyToDisplayName(key) {
-  return keyToName.get(key) || "";
-}
-
-function refreshMapStyles() {
-  if (!geoLayer) return;
-  geoLayer.eachLayer(layer => {
-    const key = featureKey(layer.feature);
-    const isSel = selected.has(key);
-    layer.setStyle({
-      weight: isSel ? 3 : 1,
-      fillOpacity: isSel ? 0.55 : 0.15,
-      opacity: isSel ? 1.0 : 0.6,
-    });
-  });
-}
-
-function refreshUI() {
-  refreshSelectionList();
-  refreshMapStyles();
-  refreshKpis();
-}
-
-function initMap() {
-  map = L.map("map");
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap",
-  }).addTo(map);
-
-  geoLayer = L.geoJSON(GEO, {
-    style: { weight: 1, fillOpacity: 0.15 },
-    onEachFeature: (feature, layer) => {
-      const name = featureName(feature);
-      const key = featureKey(feature);
-      if (name && key && !keyToName.has(key)) keyToName.set(key, String(name));
-
-      layer.bindTooltip(String(name), { sticky: true });
-      layer.on("click", () => {
-        if (!key) return;
-        if (selected.has(key)) selected.delete(key);
-        else selected.add(key);
-        refreshUI();
-      });
-    },
-  }).addTo(map);
-
-  try {
-    map.fitBounds(geoLayer.getBounds(), { padding: [20, 20] });
-  } catch {}
-}
-
-async function loadData() {
-  const r = await fetch("./data.json", { cache: "no-store" });
-  DATA = await r.json();
 }
 
 async function loadGeo() {
@@ -232,163 +52,244 @@ async function loadGeo() {
   GEO = await r.json();
 }
 
-function buildDropdowns() {
-  const years = uniqSorted(DATA.map(r => r["E_Jahr"]))
-    .sort((a, b) => Number(a) - Number(b));
-  setOptions(selYear, years);
-  if (years.length) selYear.value = String(years[0]);
-
-  const crops = uniqSorted(DATA.map(r => r["Frucht"]));
-  setOptions(selPlanCrop, crops, "– bitte wählen –", "");
+function setOptions(selectEl, values, firstLabel=null, firstValue="") {
+  selectEl.innerHTML = "";
+  if (firstLabel !== null) {
+    const o = document.createElement("option");
+    o.value = firstValue;
+    o.textContent = firstLabel;
+    selectEl.appendChild(o);
+  }
+  for (const v of values) {
+    const o = document.createElement("option");
+    o.value = String(v);
+    o.textContent = String(v);
+    selectEl.appendChild(o);
+  }
 }
 
-btnApply.onclick = () => {
-  const year = selYear.value;
-  const crop = selPlanCrop.value;
-  if (!year) return;
-  if (!crop) {
-    statusEl.textContent = "Bitte zuerst eine geplante Frucht auswählen.";
-    return;
+function ensureYear(y) {
+  const ys = new Set((PLAN.years||[]).map(n=>String(n)));
+  if (!ys.has(String(y))) {
+    PLAN.years = [...(PLAN.years||[]), Number(y)].filter(n=>Number.isFinite(n)).sort((a,b)=>a-b);
   }
-  if (!selected.size) {
-    statusEl.textContent = "Bitte zuerst Schläge auf der Karte auswählen.";
-    return;
+  if (!PLAN.plan[String(y)]) PLAN.plan[String(y)] = [];
+}
+
+function getYearArr() {
+  const y = String(selYear.value || "");
+  ensureYear(y);
+  return PLAN.plan[y];
+}
+
+function getCropForLabel(label, year) {
+  const y = String(year);
+  const arr = PLAN.plan?.[y] || [];
+  const k = normalizeName(label);
+  const hit = arr.find(u => normalizeName(u?.label) === k);
+  return hit?.crop || "";
+}
+
+function upsertEntry(label, crop) {
+  const arr = getYearArr();
+  const k = normalizeName(label);
+  let hit = arr.find(u => normalizeName(u?.label) === k);
+  if (!hit) {
+    hit = { field_id: ("F" + k.slice(0,18)).toUpperCase(), label: label, crop: crop };
+    arr.push(hit);
+  } else {
+    hit.crop = crop;
   }
+}
 
-  const plan = loadPlan();
-  const yPlan = getPlanForYear(plan, year);
-  for (const key of selected) yPlan[key] = crop;
-  savePlan(plan);
-  statusEl.textContent = `Gespeichert: ${selected.size} Schlag/Schläge → ${crop} (${year})`;
-  refreshUI();
-};
+function renderList() {
+  const y = String(selYear.value);
+  const arr = getYearArr();
+  const sorted = [...arr].sort((a,b)=>String(a.label).localeCompare(String(b.label),"de"));
+  listEl.innerHTML = "";
 
-btnClearSel.onclick = () => {
-  selected.clear();
-  refreshUI();
-};
-
-selYear.onchange = () => {
-  // Auswahl bleibt bewusst bestehen (damit man schnell mehrere Jahre bearbeiten kann),
-  // aber Anzeige der Zuordnung ändert sich.
-  refreshUI();
-};
-
-btnExportPlan.onclick = () => {
-  const plan = loadPlan();
-  downloadText("planung.json", JSON.stringify(plan, null, 2));
-};
-
-btnImportPlan.onclick = () => fileImportPlan.click();
-
-fileImportPlan.onchange = async () => {
-  const f = fileImportPlan.files?.[0];
-  if (!f) return;
-  try {
-    const text = await f.text();
-    const obj = JSON.parse(text);
-    if (!obj || typeof obj !== "object") throw new Error("Ungültiges JSON");
-    savePlan(obj);
-    statusEl.textContent = "Planung importiert.";
-    refreshUI();
-  } catch (e) {
-    console.error(e);
-    statusEl.textContent = "Import fehlgeschlagen (kein gültiges JSON).";
-  } finally {
-    fileImportPlan.value = "";
+  const frag = document.createDocumentFragment();
+  for (const u of sorted) {
+    const key = normalizeName(u.label);
+    const li = document.createElement("div");
+    li.className = "plan-row";
+    li.innerHTML = `
+      <label class="plan-row-inner">
+        <input type="checkbox" ${selectedKeys.has(key) ? "checked": ""} data-key="${key}">
+        <span class="plan-label">${u.label}</span>
+        <span class="plan-crop">${u.crop || ""}</span>
+      </label>
+    `;
+    frag.appendChild(li);
   }
-};
+  listEl.appendChild(frag);
 
-btnExportGeo.onclick = () => {
-  const year = selYear.value;
-  if (!year) return;
-  const plan = loadPlan();
-  const yPlan = plan[String(year)] || {};
+  listEl.querySelectorAll("input[type=checkbox][data-key]").forEach(cb => {
+    cb.onchange = () => {
+      const k = cb.dataset.key;
+      if (cb.checked) selectedKeys.add(k);
+      else selectedKeys.delete(k);
+      updateMapStyles();
+      updateInfo();
+    };
+  });
 
-  // Deep copy (damit wir nicht die laufende GEO-Referenz mutieren)
-  const out = JSON.parse(JSON.stringify(GEO));
-  for (const ft of out.features || []) {
-    const key = featureKey(ft);
-    const crop = yPlan[key];
-    if (!ft.properties) ft.properties = {};
-    // Jahres-spezifisches Feld (mehrere Jahre in einer GeoJSON möglich)
-    ft.properties[`plan_${year}`] = crop || "";
-  }
-  downloadText(`schlaege_plan_${year}.geojson`, JSON.stringify(out));
-};
+  updateInfo();
+}
 
-btnExportGeoAll.onclick = () => {
-  const plan = loadPlan();
-  const years = Object.keys(plan).filter(y => plan[y] && typeof plan[y] === "object");
-  if (!years.length) {
-    statusEl.textContent = "Keine Planung vorhanden (localStorage leer).";
-    return;
-  }
+function updateInfo() {
+  const y = String(selYear.value);
+  const arr = getYearArr();
+  infoEl.textContent = `Jahr ${y}: ${arr.length} Einträge • ausgewählt: ${selectedKeys.size}`;
+}
 
-  const out = JSON.parse(JSON.stringify(GEO));
-  for (const ft of out.features || []) {
-    const key = featureKey(ft);
-    if (!ft.properties) ft.properties = {};
-    for (const y of years) {
-      const crop = (plan[y] || {})[key] || "";
-      ft.properties[`plan_${y}`] = crop;
+function cropToColor(crop) {
+  const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
+  const s = String(crop||"");
+  let h = 0;
+  for (let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) >>> 0;
+  return palette[h % palette.length];
+}
+
+function updateMapStyles() {
+  if (!geoLayer) return;
+  const y = String(selYear.value);
+
+  geoLayer.eachLayer(layer => {
+    const name = String(layer.feature?.properties?.sl_name || layer.feature?.properties?.name || "");
+    const key = normalizeName(name);
+    const crop = getCropForLabel(name, y);
+    const isSel = selectedKeys.has(key);
+    const color = crop ? cropToColor(crop) : "#cccccc";
+
+    layer.setStyle({
+      color: isSel ? "#000000" : "#555555",
+      weight: isSel ? 2 : 1,
+      fillColor: color,
+      fillOpacity: isSel ? 0.65 : 0.35,
+      opacity: 1
+    });
+
+    layer.unbindTooltip();
+    layer.bindTooltip(`${name}${crop ? " • " + crop : ""}`, { sticky: true });
+  });
+}
+
+function initMap() {
+  map = L.map("mapPlan", { preferCanvas: true }).setView([51.66, 9.40], 12);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  geoLayer = L.geoJSON(GEO, {
+    style: () => ({ color: "#555555", weight: 1, fillColor: "#cccccc", fillOpacity: 0.35 }),
+    onEachFeature: (feature, layer) => {
+      const name = String(feature?.properties?.sl_name || feature?.properties?.name || "");
+      layer.on("click", () => {
+        const k = normalizeName(name);
+        if (!k) return;
+        if (selectedKeys.has(k)) selectedKeys.delete(k);
+        else selectedKeys.add(k);
+        const cb = listEl.querySelector(`input[data-key="${k}"]`);
+        if (cb) cb.checked = selectedKeys.has(k);
+        updateMapStyles();
+        updateInfo();
+      });
     }
-  }
-  downloadText(`schlaege_plan_alle_jahre.geojson`, JSON.stringify(out));
-};
+  }).addTo(map);
 
-async function main() {
-  try {
-    await loadData();
-    await loadGeo();
-    buildDropdowns();
-    initMap();
-    refreshUI();
-    statusEl.textContent = "Tipp: Mehrere Polygone anklicken, dann oben Frucht wählen → Zuordnen.";
-  } catch (e) {
-    console.error(e);
-    statusEl.textContent = "Daten konnten nicht geladen werden.";
-  }
+  try { map.fitBounds(geoLayer.getBounds(), { padding: [20,20] }); } catch {}
+  updateMapStyles();
 }
 
-main();
-function renderMismatch() {
-  if (!GEO || !GEO.features || !Array.isArray(DATA)) return;
+function wireEvents() {
+  selYear.onchange = () => {
+    selectedKeys.clear();
+    renderList();
+    updateMapStyles();
+  };
 
-  const excelKeys = new Set(DATA.map(r => normalizeName(r["Schlag"])));
-  const geoKeys = new Set((GEO.features || []).map(ft => featureKey(ft)));
+  btnAssign.onclick = () => {
+    const crop = String(selCrop.value || "").trim();
+    if (!crop) { alert("Bitte Frucht wählen."); return; }
+    if (selectedKeys.size === 0) { alert("Bitte zuerst Schläge auswählen (Karte oder Liste)."); return; }
 
-  const missExcel = Array.from(excelKeys).filter(k => k && !geoKeys.has(k)).sort();
-  const missGeo = Array.from(geoKeys).filter(k => k && !excelKeys.has(k)).sort();
+    if (!PLAN.crops.includes(crop)) {
+      PLAN.crops.push(crop);
+      PLAN.crops = uniqSorted(PLAN.crops);
+      setOptions(selCrop, PLAN.crops, "Frucht wählen…", "");
+      selCrop.value = crop;
+    }
 
-  missExcelCount.textContent = String(missExcel.length);
-  missGeoCount.textContent = String(missGeo.length);
+    for (const k of Array.from(selectedKeys)) {
+      let label = null;
+      if (GEO?.features) {
+        const f = GEO.features.find(feat => normalizeName(feat?.properties?.sl_name || feat?.properties?.name || "") === k);
+        if (f) label = String(f.properties?.sl_name || f.properties?.name || "");
+      }
+      if (!label) label = k;
+      upsertEntry(label, crop);
+    }
 
-  missExcelList.innerHTML = "";
-  for (const k of missExcel.slice(0, 300)) {
-    const li = document.createElement("li");
-    li.textContent = k;
-    missExcelList.appendChild(li);
-  }
-  if (missExcel.length > 300) {
-    const li = document.createElement("li");
-    li.textContent = `… (+${missExcel.length - 300} weitere)`;
-    missExcelList.appendChild(li);
-  }
+    renderList();
+    updateMapStyles();
+  };
 
-  missGeoList.innerHTML = "";
-  for (const k of missGeo.slice(0, 300)) {
-    const li = document.createElement("li");
-    li.textContent = k;
-    missGeoList.appendChild(li);
-  }
-  if (missGeo.length > 300) {
-    const li = document.createElement("li");
-    li.textContent = `… (+${missGeo.length - 300} weitere)`;
-    missGeoList.appendChild(li);
-  }
+  btnExport.onclick = () => {
+    PLAN.years = uniqSorted((PLAN.years||[]).map(String)).map(Number).sort((a,b)=>a-b);
+    const blob = new Blob([JSON.stringify(PLAN, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "anbau_plan.json";
+    a.click();
+    alert("Export erstellt. Bitte die heruntergeladene anbau_plan.json im GitHub-Repo ersetzen und committen, damit es für alle sichtbar ist.");
+  };
+
+  btnImport.onclick = () => fileImport.click();
+
+  fileImport.onchange = async () => {
+    const f = fileImport.files?.[0];
+    if (!f) return;
+    try {
+      const txt = await f.text();
+      const obj = JSON.parse(txt);
+      PLAN = obj;
+      if (!PLAN.plan) PLAN.plan = {};
+      if (!Array.isArray(PLAN.crops)) PLAN.crops = [];
+      if (!Array.isArray(PLAN.years)) PLAN.years = Object.keys(PLAN.plan).map(Number).filter(n=>Number.isFinite(n)).sort((a,b)=>a-b);
+
+      setOptions(selYear, PLAN.years);
+      setOptions(selCrop, PLAN.crops, "Frucht wählen…", "");
+      if (PLAN.years.length) selYear.value = String(PLAN.years[0]);
+      selectedKeys.clear();
+      renderList();
+      updateMapStyles();
+      alert("anbau_plan.json importiert. Nicht vergessen: Exportieren und ins Repo committen.");
+    } catch (e) {
+      console.error(e);
+      alert("Import fehlgeschlagen (keine gültige JSON).");
+    } finally {
+      fileImport.value = "";
+    }
+  };
+
+  if (btnLogout) btnLogout.onclick = () => { logout(); location.href = "login.html"; };
 }
 
+async function init() {
+  await requireAuth();
+  await Promise.all([loadPlan(), loadGeo()]);
 
+  setOptions(selYear, PLAN.years);
+  setOptions(selCrop, PLAN.crops, "Frucht wählen…", "");
 
-})();
+  if (PLAN.years.length) selYear.value = String(PLAN.years[0]);
+
+  renderList();
+  initMap();
+  wireEvents();
+}
+
+init();

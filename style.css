@@ -21,3 +21,20 @@ table { width:100%; border-collapse:collapse; }
 th, td { border-bottom:1px solid var(--border); padding:8px; text-align:left; font-size:13px; vertical-align:top; }
 th { color: var(--muted); font-weight:600; }
 .badge { display:inline-block; font-size:12px; padding:2px 8px; border:1px solid var(--border); border-radius:999px; }
+
+
+/* Planung Editor (Schritt 2) */
+.plan-list {
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+}
+.plan-row { padding: 4px 0; border-bottom: 1px dashed #eee; }
+.plan-row:last-child { border-bottom: none; }
+.plan-row-inner { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: center; cursor: pointer; }
+.plan-label { font-weight: 500; }
+.plan-crop { font-size: 0.9em; opacity: 0.8; }
+.muted { opacity: 0.75; margin: 8px 0; }
