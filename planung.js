@@ -10,7 +10,7 @@ let selectedKeys = new Set(); // normalize(label) keys selected on map/list
 
 const selYear = document.getElementById("selYear");
 const selCrop = document.getElementById("selPlanCrop");
-const btnAssign = document.getElementById("btnAssign");
+const btnAssign = document.getElementById("btnAssign") || document.getElementById("btnApply");
 const btnExport = document.getElementById("btnExportPlan");
 const btnImport = document.getElementById("btnImportPlan");
 const fileImport = document.getElementById("fileImportPlan");
@@ -205,13 +205,15 @@ function initMap() {
 }
 
 function wireEvents() {
+  if (!btnAssign) console.warn("[planung] btnAssign/btnApply nicht gefunden – Zuordnen-Button fehlt im HTML.");
+
   selYear.onchange = () => {
     selectedKeys.clear();
     renderList();
     updateMapStyles();
   };
+  if (btnAssign) btnAssign.onclick = () => {
 
-  btnAssign.onclick = () => {
     const crop = String(selCrop.value || "").trim();
     if (!crop) { alert("Bitte Frucht wählen."); return; }
     if (selectedKeys.size === 0) { alert("Bitte zuerst Schläge auswählen (Karte oder Liste)."); return; }
