@@ -38,3 +38,7 @@ th { color: var(--muted); font-weight:600; }
 .plan-label { font-weight: 500; }
 .plan-crop { font-size: 0.9em; opacity: 0.8; }
 .muted { opacity: 0.75; margin: 8px 0; }
+
+
+/* Leaflet Container für Planung */
+#mapPlan { height: 60vh; min-height: 420px; }
