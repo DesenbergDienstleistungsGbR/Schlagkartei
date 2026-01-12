@@ -42,3 +42,39 @@ th { color: var(--muted); font-weight:600; }
 
 /* Leaflet Container für Planung */
 #mapPlan { height: 60vh; min-height: 420px; }
+
+
+/* Planung – Layout Fix (Desktop) */
+.plan-layout{
+  display:grid;
+  grid-template-columns: 360px 1fr;
+  gap: 16px;
+  align-items:start;
+}
+
+.plan-sidebar .card{
+  position: sticky;
+  top: 12px;
+}
+
+.plan-main{
+  display:flex;
+  flex-direction:column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.plan-map{
+  height: 70vh;
+  min-height: 520px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Mobile */
+@media (max-width: 900px){
+  .plan-layout{ grid-template-columns: 1fr; }
+  .plan-map{ height: 55vh; min-height: 420px; }
+  .plan-sidebar .card{ position: static; }
+}

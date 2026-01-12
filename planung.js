@@ -235,6 +235,8 @@ function wireEvents() {
       upsertEntry(label, crop);
     }
 
+    // Auswahl nach Zuordnung leeren
+    selectedKeys.clear();
     renderList();
     updateMapStyles();
   };
