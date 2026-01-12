@@ -23,58 +23,26 @@ th { color: var(--muted); font-weight:600; }
 .badge { display:inline-block; font-size:12px; padding:2px 8px; border:1px solid var(--border); border-radius:999px; }
 
 
-/* Planung Editor (Schritt 2) */
-.plan-list {
-  max-height: 60vh;
-  overflow: auto;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 8px;
-  background: #fff;
-}
-.plan-row { padding: 4px 0; border-bottom: 1px dashed #eee; }
-.plan-row:last-child { border-bottom: none; }
-.plan-row-inner { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: center; cursor: pointer; }
-.plan-label { font-weight: 500; }
-.plan-crop { font-size: 0.9em; opacity: 0.8; }
-.muted { opacity: 0.75; margin: 8px 0; }
-
-
-/* Leaflet Container für Planung */
-#mapPlan { height: 60vh; min-height: 420px; }
-
-
-/* Planung – Layout Fix (Desktop) */
-.plan-layout{
-  display:grid;
-  grid-template-columns: 360px 1fr;
-  gap: 16px;
-  align-items:start;
-}
-
-.plan-sidebar .card{
-  position: sticky;
-  top: 12px;
-}
-
-.plan-main{
-  display:flex;
-  flex-direction:column;
-  gap: 12px;
-  min-width: 0;
-}
-
-.plan-map{
-  height: 70vh;
-  min-height: 520px;
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-/* Mobile */
-@media (max-width: 900px){
-  .plan-layout{ grid-template-columns: 1fr; }
-  .plan-map{ height: 55vh; min-height: 420px; }
-  .plan-sidebar .card{ position: static; }
-}
+/* --- Planung: Desktop Layout --- */
+.plan-layout{ display:grid; grid-template-columns:360px 1fr; gap:16px; align-items:start; padding:16px; }
+.plan-sidebar .card{ position: sticky; top: 12px; }
+.plan-main{ display:flex; flex-direction:column; gap:12px; min-width:0; }
+.plan-map{ height:70vh; min-height:520px; border:1px solid #ddd; border-radius:10px; overflow:hidden; }
+.plan-list{ max-height:45vh; overflow:auto; border:1px solid #ddd; border-radius:10px; padding:8px; background:#fff; }
+.plan-row{ padding:4px 0; border-bottom:1px dashed #eee; }
+.plan-row:last-child{ border-bottom:none; }
+.plan-row-inner{ display:grid; grid-template-columns:24px 1fr auto; gap:8px; align-items:center; cursor:pointer; }
+.plan-label{ font-weight:500; }
+.plan-crop{ font-size:0.9em; opacity:0.8; }
+.muted{ opacity:0.75; }
+.topbar{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid #eee; }
+.topbar-actions{ display:flex; gap:10px; align-items:center; }
+.btn{ padding:8px 12px; border:1px solid #ddd; border-radius:10px; background:#fff; cursor:pointer; text-decoration:none; color:inherit; }
+.btn.primary{ background:#111827; color:#fff; border-color:#111827; }
+.card{ border:1px solid #eee; border-radius:14px; padding:14px; background:#fff; }
+.label{ display:block; font-size:0.9em; opacity:0.8; margin-bottom:6px; }
+.input{ width:100%; padding:10px; border-radius:10px; border:1px solid #ddd; }
+.row{ display:flex; gap:10px; align-items:center; }
+.chips{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.chip{ padding:6px 10px; border-radius:999px; border:1px solid #eee; background:#fafafa; font-size:0.9em; }
+@media (max-width: 900px){ .plan-layout{ grid-template-columns:1fr; } .plan-sidebar .card{ position: static; } .plan-map{ height:55vh; min-height:420px; } }

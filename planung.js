@@ -1,12 +1,10 @@
 import { requireAuth, logout } from "./auth.js";
 
-// Schritt 2: Planung bearbeiten -> Export anbau_plan.json (kein Backend)
-
-let PLAN = null; // gesamtes JSON
-let GEO = null;  // GeoJSON
+let PLAN = null;
+let GEO = null;
 let map = null;
 let geoLayer = null;
-let selectedKeys = new Set(); // normalize(label) keys selected on map/list
+let selectedKeys = new Set();
 
 const selYear = document.getElementById("selYear");
 const selCrop = document.getElementById("selPlanCrop");
@@ -17,6 +15,9 @@ const fileImport = document.getElementById("fileImportPlan");
 const listEl = document.getElementById("planList");
 const infoEl = document.getElementById("planInfo");
 const btnLogout = document.getElementById("btnLogout");
+const btnClearSel = document.getElementById("btnClearSel");
+const chipSelected = document.getElementById("chipSelected");
+const chipPlanned = document.getElementById("chipPlanned");
 
 function normalizeName(s) {
   return String(s ?? "")
@@ -37,9 +38,7 @@ async function loadPlan() {
   const r = await fetch("./anbau_plan.json", { cache: "no-store" });
   PLAN = await r.json();
   if (!PLAN.plan) PLAN.plan = {};
-  if (!Array.isArray(PLAN.years)) {
-    PLAN.years = Object.keys(PLAN.plan).map(Number).filter(n=>Number.isFinite(n)).sort((a,b)=>a-b);
-  }
+  if (!Array.isArray(PLAN.years)) PLAN.years = Object.keys(PLAN.plan).map(Number).filter(Number.isFinite).sort((a,b)=>a-b);
   if (!Array.isArray(PLAN.crops)) {
     const crops = [];
     for (const arr of Object.values(PLAN.plan)) for (const u of (arr||[])) crops.push(u?.crop);
@@ -53,6 +52,7 @@ async function loadGeo() {
 }
 
 function setOptions(selectEl, values, firstLabel=null, firstValue="") {
+  if (!selectEl) return;
   selectEl.innerHTML = "";
   if (firstLabel !== null) {
     const o = document.createElement("option");
@@ -70,14 +70,12 @@ function setOptions(selectEl, values, firstLabel=null, firstValue="") {
 
 function ensureYear(y) {
   const ys = new Set((PLAN.years||[]).map(n=>String(n)));
-  if (!ys.has(String(y))) {
-    PLAN.years = [...(PLAN.years||[]), Number(y)].filter(n=>Number.isFinite(n)).sort((a,b)=>a-b);
-  }
+  if (!ys.has(String(y))) PLAN.years = [...(PLAN.years||[]), Number(y)].filter(Number.isFinite).sort((a,b)=>a-b);
   if (!PLAN.plan[String(y)]) PLAN.plan[String(y)] = [];
 }
 
 function getYearArr() {
-  const y = String(selYear.value || "");
+  const y = String(selYear?.value || "");
   ensureYear(y);
   return PLAN.plan[y];
 }
@@ -103,24 +101,22 @@ function upsertEntry(label, crop) {
 }
 
 function renderList() {
-  const y = String(selYear.value);
   const arr = getYearArr();
   const sorted = [...arr].sort((a,b)=>String(a.label).localeCompare(String(b.label),"de"));
   listEl.innerHTML = "";
-
   const frag = document.createDocumentFragment();
   for (const u of sorted) {
     const key = normalizeName(u.label);
-    const li = document.createElement("div");
-    li.className = "plan-row";
-    li.innerHTML = `
+    const row = document.createElement("div");
+    row.className = "plan-row";
+    row.innerHTML = `
       <label class="plan-row-inner">
         <input type="checkbox" ${selectedKeys.has(key) ? "checked": ""} data-key="${key}">
         <span class="plan-label">${u.label}</span>
         <span class="plan-crop">${u.crop || ""}</span>
       </label>
     `;
-    frag.appendChild(li);
+    frag.appendChild(row);
   }
   listEl.appendChild(frag);
 
@@ -140,7 +136,11 @@ function renderList() {
 function updateInfo() {
   const y = String(selYear.value);
   const arr = getYearArr();
-  infoEl.textContent = `Jahr ${y}: ${arr.length} Einträge • ausgewählt: ${selectedKeys.size}`;
+  const selCount = selectedKeys.size;
+  const plannedCount = arr.filter(u => String(u?.crop || "").trim() !== "").length;
+  infoEl.textContent = `Jahr ${y}: ${arr.length} Einträge • ausgewählt: ${selCount}`;
+  if (chipSelected) chipSelected.textContent = `Ausgewählt: ${selCount}`;
+  if (chipPlanned) chipPlanned.textContent = `Mit Planung: ${plannedCount}`;
 }
 
 function cropToColor(crop) {
@@ -204,16 +204,18 @@ function initMap() {
   updateMapStyles();
 }
 
+function clearSelection() {
+  selectedKeys.clear();
+  renderList();
+  updateMapStyles();
+}
+
 function wireEvents() {
-  if (!btnAssign) console.warn("[planung] btnAssign/btnApply nicht gefunden – Zuordnen-Button fehlt im HTML.");
+  if (btnClearSel) btnClearSel.onclick = clearSelection;
 
-  selYear.onchange = () => {
-    selectedKeys.clear();
-    renderList();
-    updateMapStyles();
-  };
+  selYear.onchange = () => clearSelection();
+
   if (btnAssign) btnAssign.onclick = () => {
-
     const crop = String(selCrop.value || "").trim();
     if (!crop) { alert("Bitte Frucht wählen."); return; }
     if (selectedKeys.size === 0) { alert("Bitte zuerst Schläge auswählen (Karte oder Liste)."); return; }
@@ -235,10 +237,7 @@ function wireEvents() {
       upsertEntry(label, crop);
     }
 
-    // Auswahl nach Zuordnung leeren
-    selectedKeys.clear();
-    renderList();
-    updateMapStyles();
+    clearSelection();
   };
 
   btnExport.onclick = () => {
@@ -248,7 +247,7 @@ function wireEvents() {
     a.href = URL.createObjectURL(blob);
     a.download = "anbau_plan.json";
     a.click();
-    alert("Export erstellt. Bitte die heruntergeladene anbau_plan.json im GitHub-Repo ersetzen und committen, damit es für alle sichtbar ist.");
+    alert("Export erstellt. Bitte die heruntergeladene anbau_plan.json im Repo ersetzen und committen.");
   };
 
   btnImport.onclick = () => fileImport.click();
@@ -262,15 +261,14 @@ function wireEvents() {
       PLAN = obj;
       if (!PLAN.plan) PLAN.plan = {};
       if (!Array.isArray(PLAN.crops)) PLAN.crops = [];
-      if (!Array.isArray(PLAN.years)) PLAN.years = Object.keys(PLAN.plan).map(Number).filter(n=>Number.isFinite(n)).sort((a,b)=>a-b);
+      if (!Array.isArray(PLAN.years)) PLAN.years = Object.keys(PLAN.plan).map(Number).filter(Number.isFinite).sort((a,b)=>a-b);
 
       setOptions(selYear, PLAN.years);
       setOptions(selCrop, PLAN.crops, "Frucht wählen…", "");
       if (PLAN.years.length) selYear.value = String(PLAN.years[0]);
-      selectedKeys.clear();
-      renderList();
-      updateMapStyles();
-      alert("anbau_plan.json importiert. Nicht vergessen: Exportieren und ins Repo committen.");
+      clearSelection();
+      updateInfo();
+      alert("Importiert. Nicht vergessen: Exportieren und im Repo committen.");
     } catch (e) {
       console.error(e);
       alert("Import fehlgeschlagen (keine gültige JSON).");
