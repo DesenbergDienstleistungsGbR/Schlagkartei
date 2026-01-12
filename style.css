@@ -1,0 +1,80 @@
+:root { --border:#e5e7eb; --muted:#6b7280; }
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin:0; }
+header { padding: 14px 18px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:12px; }
+h1 { font-size:18px; margin:0; }
+main { padding: 16px 18px; display:grid; grid-template-columns: 360px 1fr; gap:16px; }
+@media (max-width: 980px){ main { grid-template-columns:1fr; } }
+.card { border:1px solid var(--border); border-radius:12px; padding:12px; background:#fff; }
+.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+label { font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
+select, input[type="password"] { width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:#fff; }
+button { padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:#fff; cursor:pointer; }
+button.primary { background:#111827; color:#fff; border-color:#111827; }
+.small { font-size:12px; color:var(--muted); }
+.list { margin-top:10px; border-top:1px solid var(--border); }
+.list-item { padding:10px 0; border-bottom:1px solid var(--border); cursor:pointer; }
+.list-item:hover { background: rgba(0,0,0,0.03); }
+.kpi { display:flex; gap:10px; flex-wrap:wrap; }
+.kpi div { padding:6px 10px; border:1px solid var(--border); border-radius:999px; font-size:12px; }
+#map { height: 72vh; border-radius:12px; overflow:hidden; border:1px solid var(--border); }
+table { width:100%; border-collapse:collapse; }
+th, td { border-bottom:1px solid var(--border); padding:8px; text-align:left; font-size:13px; vertical-align:top; }
+th { color: var(--muted); font-weight:600; }
+.badge { display:inline-block; font-size:12px; padding:2px 8px; border:1px solid var(--border); border-radius:999px; }
+
+
+/* Planung Editor (Schritt 2) */
+.plan-list {
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+}
+.plan-row { padding: 4px 0; border-bottom: 1px dashed #eee; }
+.plan-row:last-child { border-bottom: none; }
+.plan-row-inner { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: center; cursor: pointer; }
+.plan-label { font-weight: 500; }
+.plan-crop { font-size: 0.9em; opacity: 0.8; }
+.muted { opacity: 0.75; margin: 8px 0; }
+
+
+/* Leaflet Container für Planung */
+#mapPlan { height: 60vh; min-height: 420px; }
+
+
+/* Planung – Layout Fix (Desktop) */
+.plan-layout{
+  display:grid;
+  grid-template-columns: 360px 1fr;
+  gap: 16px;
+  align-items:start;
+}
+
+.plan-sidebar .card{
+  position: sticky;
+  top: 12px;
+}
+
+.plan-main{
+  display:flex;
+  flex-direction:column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.plan-map{
+  height: 70vh;
+  min-height: 520px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Mobile */
+@media (max-width: 900px){
+  .plan-layout{ grid-template-columns: 1fr; }
+  .plan-map{ height: 55vh; min-height: 420px; }
+  .plan-sidebar .card{ position: static; }
+}
