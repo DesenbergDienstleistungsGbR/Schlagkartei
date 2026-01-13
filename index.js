@@ -10,7 +10,10 @@ const NONE_PLANNED_VALUE = "__NONE__";
 
 let DATA = [];
 let PLAN_JSON = null; // aus anbau_plan.json
-let PLAN_BY_YEAR = new Map(); // year(string)-> Map(normLabel->crop)
+let PLAN_BY_YEAR = new Map();
+let MASTER_BY_KEY = new Map();
+let MASTER_BY_ID = new Map();
+ // year(string)-> Map(normLabel->crop)
 
 let GEO = null;
 
@@ -176,7 +179,11 @@ function calcAreaHaForField(fieldName) {
     const k = p.sl_name_norm ? String(p.sl_name_norm) : normalizeName(p.sl_name || p.name || "");
     return k === key;
   });
-  if (!feats.length) return null;
+  if (!feats.length) {
+    const m = MASTER_BY_KEY.get(key);
+    const ha = m && typeof m.ha_ref === "number" && isFinite(m.ha_ref) ? m.ha_ref : null;
+    return ha;
+  }
 
   // Sum area_ha if present, sonst aus Polygon berechnen
   let sum = 0;
@@ -204,15 +211,20 @@ function updateKpis(fields) {
   kpiHa.textContent = ok ? sum.toFixed(2) : "0.00";
 }
 
+
 function renderFieldList(fields, year) {
   fieldList.innerHTML = "";
   for (const f of fields) {
     const ha = calcAreaHaForField(f.name);
+    const plan = getPlannedCropFor(f.name, year);
+    const haTxt = (ha !== null && isFinite(ha)) ? ` • ${ha.toFixed(2)} ha` : "";
+    const planTxt = (plan && String(plan).trim() !== "") ? ` • Plan: ${plan}` : "";
+
     const div = document.createElement("div");
     div.className = "list-item";
     div.innerHTML = `
       <div><b>${f.name}</b></div>
-      <div class="small">${f.count} Datensätze ${ha !== null ? "• " + ha.toFixed(2) + " ha" : ""}${(() => { const p = getPlannedCropFor(f.name, year); return p ? " • Plan: " + p : ""; })()}</div>
+      <div class="small">${f.count} Datensätze${haTxt}${planTxt}</div>
     `;
     div.onclick = () => {
       const { year, firm, crop } = getCurrentFilters();
@@ -226,6 +238,7 @@ function renderFieldList(fields, year) {
     fieldList.appendChild(div);
   }
 }
+
 
 function refreshUI() {
   const { year, planned } = getCurrentFilters();
@@ -301,10 +314,12 @@ function initMap() {
     .then(r => r.json())
     .then(g => {
       GEO = g;
-      geoLayer = L.geoJSON(GEO, { style: getOverviewPolyStyle, fillOpacity: 0.25 },
+      geoLayer = L.geoJSON(GEO, {
+        style: getOverviewPolyStyle,
         onEachFeature: (feature, layer) => {
           const name = feature?.properties?.sl_name || feature?.properties?.name || "";
-          layer.bindTooltip(String(name), { sticky: true });
+          const crop = getPlannedCropFor(name, selYear.value);
+          layer.bindTooltip(`${String(name)}${crop ? " • " + crop : ""}`, { sticky: true });
           layer.on("click", () => {
             if (name) {
               const { year, firm, crop } = getCurrentFilters();
