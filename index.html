@@ -20,9 +20,9 @@
   </div>
 </header>
 
-<main>
-  
-    <div id="geoAreaBanner" style="margin:10px 0; padding:10px; border:1px solid #eee; border-radius:10px; background:#fff;">
+<main class="home-layout">
+  <section class="home-sidebar">
+<div id="geoAreaBanner" style="margin:10px 0; padding:10px; border:1px solid #eee; border-radius:10px; background:#fff;">
       <strong>GeoJSON-Flächen:</strong> Einige Polygone haben keine <code>area_ha</code>. Die Übersicht berechnet Flächen automatisch.
       Details und Download der bereinigten GeoJSON findest du unter <a href="planung.html">Planung</a>.
     </div>
@@ -68,8 +68,10 @@
 
     <p class="small" id="status"></p>
   </div>
-
-  <div id="map"></div>
+  </section>
+  <section class="home-main">
+    <div id="map"></div>
+  </section>
 </main>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"

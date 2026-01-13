@@ -278,7 +278,7 @@ function initMap() {
     .then(g => {
       GEO = g;
       geoLayer = L.geoJSON(GEO, {
-        style: { weight: 1, fillOpacity: 0.25 },
+        style: () => ({ color: "#555", weight: 1, fillOpacity: 0.25, fillColor: "#cccccc" }),
         onEachFeature: (feature, layer) => {
           const name = feature?.properties?.sl_name || feature?.properties?.name || "";
           layer.bindTooltip(String(name), { sticky: true });
@@ -296,7 +296,9 @@ function initMap() {
         }
       }).addTo(map);
 
-      try { map.fitBounds(geoLayer.getBounds(), { padding:[20,20] }); } catch {}
+      
+      applyOverviewColors();
+try { map.fitBounds(geoLayer.getBounds(), { padding:[20,20] }); } catch {}
       refreshUI();
     })
     .catch(err => {

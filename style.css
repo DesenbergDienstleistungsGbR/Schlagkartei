@@ -67,3 +67,14 @@ th { color: var(--muted); font-weight:600; }
 .geo-miss-row:last-child{ border-bottom:none; }
 .geo-miss-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .geo-miss-ha{ opacity:0.8; }
+
+
+/* --- Startseite Layout Fix --- */
+.home-layout{ padding:16px 18px; display:grid; grid-template-columns:360px 1fr; gap:16px; }
+.home-sidebar{ min-width:0; }
+.home-main{ min-width:0; }
+.home-main #map{ height: calc(100vh - 120px); min-height:520px; }
+@media (max-width: 900px){
+  .home-layout{ grid-template-columns:1fr; }
+  .home-main #map{ height:55vh; min-height:420px; }
+}
