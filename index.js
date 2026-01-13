@@ -27,6 +27,15 @@ const btnToggleAll = document.getElementById("btnToggleAll");
 document.getElementById("btnLogout").onclick = () => logout();
 
 
+
+function cropToColor(crop) {
+  const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
+  const s = String(crop || "");
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return palette[h % palette.length];
+}
+
 function normalizeName(s) {
   // Robust für Matching (Umlaute, Sonderzeichen, Leerzeichen)
   return String(s || "")
@@ -264,6 +273,21 @@ function buildDropdowns() {
   selPlanned.value = ALL_PLANNED_VALUE;
 }
 
+
+function getOverviewPolyStyle(feature) {
+  const name = String(feature?.properties?.sl_name || feature?.properties?.name || "");
+  const crop = getPlannedCropFor(name, selYear.value);
+  const hasPlan = crop && String(crop).trim() !== "";
+  const fillColor = hasPlan ? cropToColor(crop) : "#cccccc";
+  return {
+    color: "#555555",
+    weight: 1,
+    fillColor,
+    fillOpacity: hasPlan ? 0.45 : 0.20,
+    opacity: 1
+  };
+}
+
 function initMap() {
   map = L.map("map");
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -277,8 +301,7 @@ function initMap() {
     .then(r => r.json())
     .then(g => {
       GEO = g;
-      geoLayer = L.geoJSON(GEO, {
-        style: { weight: 1, fillOpacity: 0.25 },
+      geoLayer = L.geoJSON(GEO, { style: getOverviewPolyStyle, fillOpacity: 0.25 },
         onEachFeature: (feature, layer) => {
           const name = feature?.properties?.sl_name || feature?.properties?.name || "";
           layer.bindTooltip(String(name), { sticky: true });
@@ -413,3 +436,16 @@ async function init() {
 }
 
 init();
+function refreshOverviewMapStyles() {
+  if (!geoLayer) return;
+  geoLayer.eachLayer(layer => {
+    const f = layer.feature;
+    layer.setStyle(getOverviewPolyStyle(f));
+    const name = String(f?.properties?.sl_name || f?.properties?.name || "");
+    const crop = getPlannedCropFor(name, selYear.value);
+    layer.unbindTooltip();
+    layer.bindTooltip(`${name}${crop ? " • " + crop : ""}`, { sticky: true });
+  });
+}
+
+

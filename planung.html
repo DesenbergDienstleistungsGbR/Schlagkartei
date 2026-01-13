@@ -54,6 +54,33 @@
           </p>
         </details>
 
+        
+        <details style="margin-top:12px;">
+          <summary>Datenprüfung (GeoJSON)</summary>
+          <p class="muted" style="margin-top:8px;">
+            Liste der Polygone ohne <code>area_ha</code> (Fläche wird berechnet). Optional kannst du eine neue GeoJSON-Datei
+            mit eingetragenen <code>area_ha</code>-Werten herunterladen.
+          </p>
+          <div class="row" style="margin-top:10px; flex-wrap:wrap;">
+            <button id="btnDownloadGeoWithArea" class="btn" type="button">GeoJSON mit area_ha herunterladen</button>
+            <span class="chip" id="chipGeoMissing">ohne area_ha: 0</span>
+          </div>
+          <div id="geoMissingList" class="geo-missing-list" style="margin-top:10px;"></div>
+        </details>
+
+
+        <details style="margin-top:12px;">
+          <summary>Plausibilität (Schlagteilung)</summary>
+          <p class="muted" style="margin-top:8px;">
+            Prüft je <code>field_id</code>: Summe der Geo-Teilflächen (Labels in anbau_plan) darf nicht größer sein als <code>ha_ref</code> aus <code>schlaege_master.json</code>.
+            (Nur dort, wo <code>ha_ref</code> vorhanden ist.)
+          </p>
+          <div class="row" style="margin-top:10px; flex-wrap:wrap;">
+            <span class="chip" id="chipPlaus">Plausibilität: 0 Hinweis(e)</span>
+          </div>
+          <div id="plausibilityList" class="plaus-list" style="margin-top:10px;"></div>
+        </details>
+
         <p class="muted" style="margin-top:12px;">
           Schläge auf der Karte anklicken (oder in der Liste), Frucht wählen, „Zuordnen“.
         </p>

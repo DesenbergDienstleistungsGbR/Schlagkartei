@@ -1,6 +1,9 @@
 import { requireAuth, logout } from "./auth.js";
 
 let PLAN = null;
+let MASTER = null;
+let MASTER_BY_ID = new Map();
+
 let GEO = null;
 let map = null;
 let geoLayer = null;
@@ -18,6 +21,52 @@ const btnLogout = document.getElementById("btnLogout");
 const btnClearSel = document.getElementById("btnClearSel");
 const chipSelected = document.getElementById("chipSelected");
 const chipPlanned = document.getElementById("chipPlanned");
+const chipGeoMissing = document.getElementById("chipGeoMissing");
+const geoMissingListEl = document.getElementById("geoMissingList");
+const btnDownloadGeoWithArea = document.getElementById("btnDownloadGeoWithArea");
+const plausListEl = document.getElementById("plausibilityList");
+const chipPlaus = document.getElementById("chipPlaus");
+
+
+// --- Flächenberechnung aus GeoJSON (WGS84) ---
+const _EARTH_RADIUS = 6378137; // Meter (WGS84)
+
+function _ringAreaMeters2(coords) {
+  if (!coords || coords.length < 3) return 0;
+  let area = 0;
+  for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+    const p1 = coords[i];
+    const p2 = coords[j];
+    const lon1 = (p1[0] * Math.PI) / 180;
+    const lon2 = (p2[0] * Math.PI) / 180;
+    const lat1 = (p1[1] * Math.PI) / 180;
+    const lat2 = (p2[1] * Math.PI) / 180;
+    area += (lon2 - lon1) * (2 + Math.sin(lat1) + Math.sin(lat2));
+  }
+  area = (area * _EARTH_RADIUS * _EARTH_RADIUS) / 2;
+  return Math.abs(area);
+}
+
+function _polygonAreaMeters2(polyCoords) {
+  if (!polyCoords || !polyCoords.length) return 0;
+  let area = _ringAreaMeters2(polyCoords[0]);
+  for (let i = 1; i < polyCoords.length; i++) area -= _ringAreaMeters2(polyCoords[i]);
+  return Math.max(0, area);
+}
+
+function geojsonAreaHa(geometry) {
+  if (!geometry) return null;
+  const t = geometry.type;
+  let m2 = 0;
+  if (t === "Polygon") {
+    m2 = _polygonAreaMeters2(geometry.coordinates);
+  } else if (t === "MultiPolygon") {
+    for (const poly of geometry.coordinates) m2 += _polygonAreaMeters2(poly);
+  } else {
+    return null;
+  }
+  return m2 / 10000;
+}
 
 function normalizeName(s) {
   return String(s ?? "")
@@ -43,6 +92,16 @@ async function loadPlan() {
     const crops = [];
     for (const arr of Object.values(PLAN.plan)) for (const u of (arr||[])) crops.push(u?.crop);
     PLAN.crops = uniqSorted(crops);
+  }
+}
+
+
+async function loadMaster() {
+  const r = await fetch("./schlaege_master.json", { cache: "no-store" });
+  MASTER = await r.json();
+  MASTER_BY_ID = new Map();
+  for (const f of (MASTER?.fields || [])) {
+    if (f?.field_id) MASTER_BY_ID.set(String(f.field_id), f);
   }
 }
 
@@ -208,10 +267,12 @@ function clearSelection() {
   selectedKeys.clear();
   renderList();
   updateMapStyles();
+  renderPlausibility();
 }
 
 function wireEvents() {
   if (btnClearSel) btnClearSel.onclick = clearSelection;
+  if (btnDownloadGeoWithArea) btnDownloadGeoWithArea.onclick = downloadGeoJsonWithArea;
 
   selYear.onchange = () => clearSelection();
 
@@ -238,6 +299,7 @@ function wireEvents() {
     }
 
     clearSelection();
+    renderPlausibility();
   };
 
   btnExport.onclick = () => {
@@ -280,9 +342,147 @@ function wireEvents() {
   if (btnLogout) btnLogout.onclick = () => { logout(); location.href = "login.html"; };
 }
 
+
+
+function computeGeoMissingAreas() {
+  // returns array of {name, ha}
+  const out = [];
+  for (const f of (GEO?.features || [])) {
+    const props = f.properties || {};
+    const a = props.area_ha;
+    const name = String(props.sl_name || props.name || "");
+    if (!(typeof a === "number" && isFinite(a))) {
+      const ha = geojsonAreaHa(f.geometry);
+      if (typeof ha === "number" && isFinite(ha)) out.push({ name, ha });
+    }
+  }
+  out.sort((x,y)=>String(x.name).localeCompare(String(y.name),"de"));
+  return out;
+}
+
+function renderGeoMissingList() {
+  if (!geoMissingListEl) return;
+  const missing = computeGeoMissingAreas();
+  if (chipGeoMissing) chipGeoMissing.textContent = `ohne area_ha: ${missing.length}`;
+
+  if (missing.length === 0) {
+    geoMissingListEl.innerHTML = '<div class="muted">Alle Polygone haben area_ha (oder konnten berechnet werden).</div>';
+    return;
+  }
+
+  const rows = missing.slice(0, 400).map(m => {
+    const ha2 = (Math.round(m.ha * 100) / 100).toFixed(2);
+    return `<div class="geo-miss-row"><span class="geo-miss-name">${m.name || "(ohne Name)"}</span><span class="geo-miss-ha">${ha2} ha</span></div>`;
+  }).join("");
+
+  const note = missing.length > 400 ? `<div class="muted" style="margin-top:6px;">(gekürzt: ${missing.length} Einträge)</div>` : "";
+  geoMissingListEl.innerHTML = rows + note;
+}
+
+
+
+function areaHaForGeoLabel(label){
+  const k = normalizeName(label);
+  if (!k) return null;
+  const feats = (GEO?.features || []).filter(f => normalizeName(f?.properties?.sl_name || f?.properties?.name || "") === k);
+  if (!feats.length) return null;
+  let sum = 0;
+  let ok = false;
+  for (const ft of feats){
+    const a = ft?.properties?.area_ha;
+    if (typeof a === "number" && isFinite(a)) { sum += a; ok = true; }
+    else {
+      const ha = geojsonAreaHa(ft.geometry);
+      if (typeof ha === "number" && isFinite(ha)) { sum += ha; ok = true; }
+    }
+  }
+  return ok ? sum : null;
+}
+
+function computePlausibilityIssues(){
+  const y = String(selYear.value || "");
+  const arr = PLAN?.plan?.[y] || [];
+  // group by field_id
+  const groups = new Map();
+  for (const u of arr){
+    const fid = String(u?.field_id || "");
+    if (!fid) continue;
+    if (!groups.has(fid)) groups.set(fid, []);
+    groups.get(fid).push(u);
+  }
+
+  const issues = [];
+  for (const [fid, units] of groups.entries()){
+    const m = MASTER_BY_ID.get(fid);
+    const haRef = (m && typeof m.ha_ref === "number" && isFinite(m.ha_ref)) ? m.ha_ref : null;
+    if (haRef === null) continue;
+
+    let sumParts = 0;
+    let ok = false;
+    for (const u of units){
+      const ha = areaHaForGeoLabel(u.label);
+      if (typeof ha === "number" && isFinite(ha)) { sumParts += ha; ok = true; }
+    }
+    if (!ok) continue;
+
+    // Toleranz 0.01 ha
+    if (sumParts > haRef + 0.01){
+      issues.push({ field_id: fid, ha_ref: haRef, sum_parts: sumParts, count: units.length, labels: units.map(u=>u.label) });
+    }
+  }
+  issues.sort((a,b)=> (b.sum_parts-b.ha_ref) - (a.sum_parts-a.ha_ref));
+  return issues;
+}
+
+function renderPlausibility(){
+  if (!plausListEl) return;
+  const issues = computePlausibilityIssues();
+  if (chipPlaus) chipPlaus.textContent = `Plausibilität: ${issues.length} Hinweis(e)`;
+
+  if (!issues.length){
+    plausListEl.innerHTML = '<div class="muted">Keine Auffälligkeiten gefunden (auf Basis von ha_ref aus schlaege_master.json).</div>';
+    return;
+  }
+
+  plausListEl.innerHTML = issues.slice(0,200).map(it => {
+    const ref = (Math.round(it.ha_ref*100)/100).toFixed(2);
+    const sp  = (Math.round(it.sum_parts*100)/100).toFixed(2);
+    const over = (Math.round((it.sum_parts-it.ha_ref)*100)/100).toFixed(2);
+    const labels = it.labels.join(", ");
+    return `<div class="plaus-row">
+      <div class="plaus-top"><strong>${it.field_id}</strong> <span class="muted">(${it.count} Teil(e))</span></div>
+      <div class="plaus-mid">Summe Teilflächen: <strong>${sp} ha</strong> • Referenz: ${ref} ha • Überschreitung: <strong>${over} ha</strong></div>
+      <div class="plaus-labels muted">${labels}</div>
+    </div>`;
+  }).join("");
+}
+
+
+function downloadGeoJsonWithArea() {
+  // clone and enrich: set properties.area_ha when missing
+  const clone = JSON.parse(JSON.stringify(GEO));
+  for (const f of (clone?.features || [])) {
+    if (!f.properties) f.properties = {};
+    const a = f.properties.area_ha;
+    if (!(typeof a === "number" && isFinite(a))) {
+      const ha = geojsonAreaHa(f.geometry);
+      if (typeof ha === "number" && isFinite(ha)) {
+        // keep full precision; display rounding is separate
+        f.properties.area_ha = ha;
+      }
+    }
+  }
+  const blob = new Blob([JSON.stringify(clone, null, 2)], { type: "application/geo+json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "schlaege_mit_area_ha.geojson";
+  a.click();
+}
+
+
 async function init() {
   await requireAuth();
-  await Promise.all([loadPlan(), loadGeo()]);
+  await Promise.all([loadPlan(), loadGeo(), loadMaster()]);
 
   setOptions(selYear, PLAN.years);
   setOptions(selCrop, PLAN.crops, "Frucht wählen…", "");
@@ -291,6 +491,8 @@ async function init() {
 
   renderList();
   initMap();
+  renderGeoMissingList();
+  renderPlausibility();
   wireEvents();
 }
 
