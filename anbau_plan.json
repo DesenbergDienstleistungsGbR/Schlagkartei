@@ -10765,46 +10765,6 @@
         "field_id": "FZWISCHENDEMHUAEDAR",
         "label": "Zwischen dem Huaedarer u",
         "crop": "WW"
-      },
-      {
-        "field_id": "FSAUL",
-        "label": "Saul",
-        "crop": "WW"
-      },
-      {
-        "field_id": "F51",
-        "label": "51",
-        "crop": "AB"
-      },
-      {
-        "field_id": "FFUCHSLOCHER02",
-        "label": "Fuchslöcher-02",
-        "crop": "AB"
-      },
-      {
-        "field_id": "FFUCHSLOCHER01",
-        "label": "Fuchslöcher-01",
-        "crop": "AB"
-      },
-      {
-        "field_id": "FGRUBE",
-        "label": "Grube",
-        "crop": "AB"
-      },
-      {
-        "field_id": "FSTOPPELKAMP",
-        "label": "Stoppelkamp",
-        "crop": "SM"
-      },
-      {
-        "field_id": "F46",
-        "label": "46",
-        "crop": "SM"
-      },
-      {
-        "field_id": "FMUHLENPLAN",
-        "label": "Mühlenplan",
-        "crop": "SM"
       }
     ]
   }

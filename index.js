@@ -112,6 +112,52 @@ function fieldsFromData(rows) {
 let map, geoLayer, popupLayer;
 let showAllPopups = false;
 
+
+// --- Flächenberechnung aus GeoJSON (WGS84) ---
+// Fallback, wenn properties.area_ha fehlt.
+// Berechnet geodätische Fläche auf Kugel (nahe genug für Feldgrößen).
+const _EARTH_RADIUS = 6378137; // Meter (WGS84)
+
+function _ringAreaMeters2(coords) {
+  // coords: [[lng,lat], ...] (geschlossen oder offen)
+  if (!coords || coords.length < 3) return 0;
+  let area = 0;
+  for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+    const p1 = coords[i];
+    const p2 = coords[j];
+    const lon1 = (p1[0] * Math.PI) / 180;
+    const lon2 = (p2[0] * Math.PI) / 180;
+    const lat1 = (p1[1] * Math.PI) / 180;
+    const lat2 = (p2[1] * Math.PI) / 180;
+    area += (lon2 - lon1) * (2 + Math.sin(lat1) + Math.sin(lat2));
+  }
+  area = (area * _EARTH_RADIUS * _EARTH_RADIUS) / 2;
+  return Math.abs(area);
+}
+
+function _polygonAreaMeters2(polyCoords) {
+  // polyCoords: [outerRing, holeRing1, ...]
+  if (!polyCoords || !polyCoords.length) return 0;
+  let area = _ringAreaMeters2(polyCoords[0]);
+  for (let i = 1; i < polyCoords.length; i++) area -= _ringAreaMeters2(polyCoords[i]);
+  return Math.max(0, area);
+}
+
+function geojsonAreaHa(geometry) {
+  if (!geometry) return null;
+  const t = geometry.type;
+  let m2 = 0;
+
+  if (t === "Polygon") {
+    m2 = _polygonAreaMeters2(geometry.coordinates);
+  } else if (t === "MultiPolygon") {
+    for (const poly of geometry.coordinates) m2 += _polygonAreaMeters2(poly);
+  } else {
+    return null;
+  }
+  return m2 / 10000; // ha
+}
+
 function calcAreaHaForField(fieldName) {
   if (!GEO || !GEO.features) return null;
   const key = normalizeName(fieldName);
@@ -123,12 +169,17 @@ function calcAreaHaForField(fieldName) {
   });
   if (!feats.length) return null;
 
-  // Sum area_ha if present
+  // Sum area_ha if present, sonst aus Polygon berechnen
   let sum = 0;
   let ok = false;
+
   for (const ft of feats) {
     const a = ft.properties?.area_ha;
     if (typeof a === "number" && isFinite(a)) { sum += a; ok = true; }
+    else {
+      const ha = geojsonAreaHa(ft.geometry);
+      if (typeof ha === "number" && isFinite(ha)) { sum += ha; ok = true; }
+    }
   }
   return ok ? sum : null;
 }
