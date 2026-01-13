@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Schlagkartei – Login</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <link rel="icon" href="data:,">
+  <h1>Schlagkartei – Login</h1>
+</header>
+<main style="grid-template-columns: 1fr; max-width:520px; margin:0 auto;">
+  <div class="card">
+    <label for="pw">Passwort</label>
+    <input id="pw" type="password" autocomplete="current-password" />
+    <div class="row" style="margin-top:10px;">
+      <button class="primary" id="btn">Anmelden</button>
+      <span class="small" id="msg"></span>
+    </div>
+    <p class="small" style="margin-top:10px;">
+      Hinweis: Das Passwort ist client-seitig. Du kannst es in <b>auth.js</b> ändern (Konstante <code>PASSWORD</code>).
+    </p>
+  </div>
+</main>
+<script type="module">
+  import { login, isAuthed } from "./auth_v3.js";
+  if (isAuthed()) window.location.href = "index.html";
+  const pw = document.getElementById("pw");
+  const msg = document.getElementById("msg");
+  document.getElementById("btn").onclick = () => {
+    if (login(pw.value)) window.location.href = "index.html";
+    else msg.textContent = "Falsches Passwort.";
+  };
+  pw.addEventListener("keydown", (e)=>{ if(e.key==="Enter") document.getElementById("btn").click(); });
+</script>
+</body>
+</html>

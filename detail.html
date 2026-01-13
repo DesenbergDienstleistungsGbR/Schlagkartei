@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Schlagdetails</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <link rel="icon" href="data:,">
+  <h1 id="title">Schlagdetails</h1>
+  <div class="row">
+    <a href="index.html"><button>← Zurück</button></a>
+    <a href="planung.html"><button>Planung</button></a>
+    <button id="btnLogout">Logout</button>
+  </div>
+</header>
+
+<main style="grid-template-columns: 1fr;">
+  <div class="card">
+    <div class="row" style="gap:12px;">
+      <div style="flex:1;">
+        <label>Art</label>
+        <select id="selArt"></select>
+      </div>
+      <div class="kpi" style="margin-left:auto;">
+        <div>Σ gesNha: <b id="sumGesN">0.00</b></div>
+        <div>Σ NH4: <b id="sumNH4">0.00</b></div>
+        <div>Σ K: <b id="sumK">0.00</b></div>
+        <div>Σ S: <b id="sumS">0.00</b></div>
+      </div>
+    </div>
+
+    <div style="overflow:auto; margin-top:10px;">
+      <table id="tbl">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="small" id="meta"></p>
+  </div>
+</main>
+
+<script type="module" src="detail_v3.js"></script>
+</body>
+</html>

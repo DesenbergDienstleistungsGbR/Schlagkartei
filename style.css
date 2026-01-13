@@ -1,0 +1,80 @@
+:root { --border:#e5e7eb; --muted:#6b7280; }
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin:0; }
+header { padding: 14px 18px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:12px; }
+h1 { font-size:18px; margin:0; }
+main { padding: 16px 18px; display:grid; grid-template-columns: 360px 1fr; gap:16px; }
+@media (max-width: 980px){ main { grid-template-columns:1fr; } }
+.card { border:1px solid var(--border); border-radius:12px; padding:12px; background:#fff; }
+.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+label { font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
+select, input[type="password"] { width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:#fff; }
+button { padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:#fff; cursor:pointer; }
+button.primary { background:#111827; color:#fff; border-color:#111827; }
+.small { font-size:12px; color:var(--muted); }
+.list { margin-top:10px; border-top:1px solid var(--border); }
+.list-item { padding:10px 0; border-bottom:1px solid var(--border); cursor:pointer; }
+.list-item:hover { background: rgba(0,0,0,0.03); }
+.kpi { display:flex; gap:10px; flex-wrap:wrap; }
+.kpi div { padding:6px 10px; border:1px solid var(--border); border-radius:999px; font-size:12px; }
+#map { height: 72vh; border-radius:12px; overflow:hidden; border:1px solid var(--border); }
+table { width:100%; border-collapse:collapse; }
+th, td { border-bottom:1px solid var(--border); padding:8px; text-align:left; font-size:13px; vertical-align:top; }
+th { color: var(--muted); font-weight:600; }
+.badge { display:inline-block; font-size:12px; padding:2px 8px; border:1px solid var(--border); border-radius:999px; }
+
+
+/* --- Planung: Desktop Layout --- */
+.plan-layout{ display:grid; grid-template-columns:360px 1fr; gap:16px; align-items:start; padding:16px; }
+.plan-sidebar .card{ position: sticky; top: 12px; }
+.plan-main{ display:flex; flex-direction:column; gap:12px; min-width:0; }
+.plan-map{ height:70vh; min-height:520px; border:1px solid #ddd; border-radius:10px; overflow:hidden; }
+.plan-list{ max-height:45vh; overflow:auto; border:1px solid #ddd; border-radius:10px; padding:8px; background:#fff; }
+.plan-row{ padding:4px 0; border-bottom:1px dashed #eee; }
+.plan-row:last-child{ border-bottom:none; }
+.plan-row-inner{ display:grid; grid-template-columns:24px 1fr auto; gap:8px; align-items:center; cursor:pointer; }
+.plan-label{ font-weight:500; }
+.plan-crop{ font-size:0.9em; opacity:0.8; }
+.muted{ opacity:0.75; }
+.topbar{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid #eee; }
+.topbar-actions{ display:flex; gap:10px; align-items:center; }
+.btn{ padding:8px 12px; border:1px solid #ddd; border-radius:10px; background:#fff; cursor:pointer; text-decoration:none; color:inherit; }
+.btn.primary{ background:#111827; color:#fff; border-color:#111827; }
+.card{ border:1px solid #eee; border-radius:14px; padding:14px; background:#fff; }
+.label{ display:block; font-size:0.9em; opacity:0.8; margin-bottom:6px; }
+.input{ width:100%; padding:10px; border-radius:10px; border:1px solid #ddd; }
+.row{ display:flex; gap:10px; align-items:center; }
+.chips{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.chip{ padding:6px 10px; border-radius:999px; border:1px solid #eee; background:#fafafa; font-size:0.9em; }
+@media (max-width: 900px){ .plan-layout{ grid-template-columns:1fr; } .plan-sidebar .card{ position: static; } .plan-map{ height:55vh; min-height:420px; } }
+
+
+/* Datenprüfung GeoJSON */
+.geo-missing-list{
+  border: 1px solid #eee;
+  border-radius: 10px;
+  padding: 8px;
+  max-height: 220px;
+  overflow: auto;
+  background: #fff;
+}
+.geo-miss-row{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  padding:4px 0;
+  border-bottom: 1px dashed #f0f0f0;
+}
+.geo-miss-row:last-child{ border-bottom:none; }
+.geo-miss-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.geo-miss-ha{ opacity:0.8; }
+
+
+/* --- Startseite Layout Fix --- */
+.home-layout{ padding:16px 18px; display:grid; grid-template-columns:360px 1fr; gap:16px; }
+.home-sidebar{ min-width:0; }
+.home-main{ min-width:0; }
+.home-main #map{ height: calc(100vh - 120px); min-height:520px; }
+@media (max-width: 900px){
+  .home-layout{ grid-template-columns:1fr; }
+  .home-main #map{ height:55vh; min-height:420px; }
+}
