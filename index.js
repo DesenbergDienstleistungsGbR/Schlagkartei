@@ -10,10 +10,7 @@ const NONE_PLANNED_VALUE = "__NONE__";
 
 let DATA = [];
 let PLAN_JSON = null; // aus anbau_plan.json
-let PLAN_BY_YEAR = new Map();
-let MASTER_BY_KEY = new Map();
-let MASTER_BY_ID = new Map();
- // year(string)-> Map(normLabel->crop)
+let PLAN_BY_YEAR = new Map(); // year(string)-> Map(normLabel->crop)
 
 let GEO = null;
 
@@ -29,15 +26,6 @@ const btnToggleAll = document.getElementById("btnToggleAll");
 
 document.getElementById("btnLogout").onclick = () => logout();
 
-
-
-function cropToColor(crop) {
-  const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
-  const s = String(crop || "");
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return palette[h % palette.length];
-}
 
 function normalizeName(s) {
   // Robust für Matching (Umlaute, Sonderzeichen, Leerzeichen)
@@ -179,11 +167,7 @@ function calcAreaHaForField(fieldName) {
     const k = p.sl_name_norm ? String(p.sl_name_norm) : normalizeName(p.sl_name || p.name || "");
     return k === key;
   });
-  if (!feats.length) {
-    const m = MASTER_BY_KEY.get(key);
-    const ha = m && typeof m.ha_ref === "number" && isFinite(m.ha_ref) ? m.ha_ref : null;
-    return ha;
-  }
+  if (!feats.length) return null;
 
   // Sum area_ha if present, sonst aus Polygon berechnen
   let sum = 0;
@@ -211,20 +195,15 @@ function updateKpis(fields) {
   kpiHa.textContent = ok ? sum.toFixed(2) : "0.00";
 }
 
-
 function renderFieldList(fields, year) {
   fieldList.innerHTML = "";
   for (const f of fields) {
     const ha = calcAreaHaForField(f.name);
-    const plan = getPlannedCropFor(f.name, year);
-    const haTxt = (ha !== null && isFinite(ha)) ? ` • ${ha.toFixed(2)} ha` : "";
-    const planTxt = (plan && String(plan).trim() !== "") ? ` • Plan: ${plan}` : "";
-
     const div = document.createElement("div");
     div.className = "list-item";
     div.innerHTML = `
       <div><b>${f.name}</b></div>
-      <div class="small">${f.count} Datensätze${haTxt}${planTxt}</div>
+      <div class="small">${f.count} Datensätze ${ha !== null ? "• " + ha.toFixed(2) + " ha" : ""}${(() => { const p = getPlannedCropFor(f.name, year); return p ? " • Plan: " + p : ""; })()}</div>
     `;
     div.onclick = () => {
       const { year, firm, crop } = getCurrentFilters();
@@ -238,7 +217,6 @@ function renderFieldList(fields, year) {
     fieldList.appendChild(div);
   }
 }
-
 
 function refreshUI() {
   const { year, planned } = getCurrentFilters();
@@ -286,21 +264,6 @@ function buildDropdowns() {
   selPlanned.value = ALL_PLANNED_VALUE;
 }
 
-
-function getOverviewPolyStyle(feature) {
-  const name = String(feature?.properties?.sl_name || feature?.properties?.name || "");
-  const crop = getPlannedCropFor(name, selYear.value);
-  const hasPlan = crop && String(crop).trim() !== "";
-  const fillColor = hasPlan ? cropToColor(crop) : "#cccccc";
-  return {
-    color: "#555555",
-    weight: 1,
-    fillColor,
-    fillOpacity: hasPlan ? 0.45 : 0.20,
-    opacity: 1
-  };
-}
-
 function initMap() {
   map = L.map("map");
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -315,11 +278,10 @@ function initMap() {
     .then(g => {
       GEO = g;
       geoLayer = L.geoJSON(GEO, {
-        style: getOverviewPolyStyle,
+        style: { weight: 1, fillOpacity: 0.25 },
         onEachFeature: (feature, layer) => {
           const name = feature?.properties?.sl_name || feature?.properties?.name || "";
-          const crop = getPlannedCropFor(name, selYear.value);
-          layer.bindTooltip(`${String(name)}${crop ? " • " + crop : ""}`, { sticky: true });
+          layer.bindTooltip(String(name), { sticky: true });
           layer.on("click", () => {
             if (name) {
               const { year, firm, crop } = getCurrentFilters();
@@ -451,16 +413,30 @@ async function init() {
 }
 
 init();
-function refreshOverviewMapStyles() {
+
+
+function cropToColor(crop) {
+  const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
+  const s = String(crop || "");
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return palette[h % palette.length];
+}
+
+function applyOverviewColors() {
   if (!geoLayer) return;
   geoLayer.eachLayer(layer => {
     const f = layer.feature;
-    layer.setStyle(getOverviewPolyStyle(f));
     const name = String(f?.properties?.sl_name || f?.properties?.name || "");
     const crop = getPlannedCropFor(name, selYear.value);
+    const hasPlan = crop && String(crop).trim() !== "";
+    layer.setStyle({
+      color: "#555",
+      weight: 1,
+      fillColor: hasPlan ? cropToColor(crop) : "#cccccc",
+      fillOpacity: hasPlan ? 0.45 : 0.2
+    });
     layer.unbindTooltip();
     layer.bindTooltip(`${name}${crop ? " • " + crop : ""}`, { sticky: true });
   });
 }
-
-

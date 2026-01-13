@@ -67,19 +67,3 @@ th { color: var(--muted); font-weight:600; }
 .geo-miss-row:last-child{ border-bottom:none; }
 .geo-miss-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .geo-miss-ha{ opacity:0.8; }
-
-
-/* Plausibilität */
-.plaus-list{
-  border: 1px solid #eee;
-  border-radius: 10px;
-  padding: 8px;
-  max-height: 240px;
-  overflow: auto;
-  background: #fff;
-}
-.plaus-row{ padding: 8px 0; border-bottom: 1px dashed #f0f0f0; }
-.plaus-row:last-child{ border-bottom:none; }
-.plaus-top{ display:flex; gap:8px; align-items:baseline; }
-.plaus-mid{ margin-top:4px; }
-.plaus-labels{ margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
