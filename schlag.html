@@ -1,0 +1,28 @@
+<!doctype html><html lang="de"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Schlag – Details</title><link rel="stylesheet" href="./styles.css"/></head><body>
+<header><h1 id="title">Schlag</h1><div class="actions"><button id="btnBack">← Zurück</button><button id="btnLogout">Logout</button></div></header>
+<div class="tablewrap">
+  <div class="panel" style="margin-bottom:12px;">
+    <div class="label">Art</div><select id="selArt"></select>
+    <div style="height:12px"></div>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Σ gesN/ha</div><div class="v" id="kpiN">–</div></div>
+      <div class="kpi"><div class="k">Σ NH4/ha</div><div class="v" id="kpiNH4">–</div></div>
+      <div class="kpi"><div class="k">Σ P/ha</div><div class="v" id="kpiP">–</div></div>
+      <div class="kpi"><div class="k">Σ K/ha</div><div class="v" id="kpiK">–</div></div>
+      <div class="kpi"><div class="k">Σ S/ha</div><div class="v" id="kpiS">–</div></div>
+    </div>
+    <div class="small" id="hint" style="margin-top:10px;"></div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Datum</th><th>bearb. Fläche</th><th>Artikel</th><th>Menge/ha</th><th>E</th><th>Art</th>
+      <th>Frucht</th><th>E_Jahr</th><th>gesN/ha</th><th>NH4/ha</th><th>P/ha</th><th>K/ha</th><th>S/ha</th>
+      <th>Firma</th><th>wasserschutzgeb</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<script type="module" src="./schlag.js"></script>
+</body></html>

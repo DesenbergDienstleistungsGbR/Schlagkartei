@@ -1,0 +1,20 @@
+<!doctype html><html lang="de"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Schlagkartei – Login</title><link rel="stylesheet" href="./styles.css"/></head>
+<body style="background:#fafafa;">
+<div class="loginbox">
+<h2>Login</h2>
+<div class="label">Passwort</div>
+<input id="pw" type="password" placeholder="Passwort"/>
+<div style="height:10px"></div>
+<button class="primary" id="btn">Anmelden</button>
+<div class="note">Option A ist client-seitig (Passwort steht in <code>auth.js</code>).</div>
+<div id="err" style="color:#b00020;margin-top:10px;display:none;">Falsches Passwort.</div>
+</div>
+<script type="module">
+import { login, isAuthed } from "./auth.js";
+if (isAuthed()) window.location.href="./index.html";
+const pw=document.getElementById("pw"); const err=document.getElementById("err");
+document.getElementById("btn").onclick=()=>{err.style.display="none"; if(login(pw.value)) window.location.href="./index.html"; else err.style.display="block";};
+pw.addEventListener("keydown",(e)=>{if(e.key==="Enter")document.getElementById("btn").click();});
+</script></body></html>

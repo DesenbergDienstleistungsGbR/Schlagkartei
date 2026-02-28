@@ -1,0 +1,37 @@
+<!doctype html><html lang="de"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Schlagkartei</title>
+<link rel="stylesheet" href="./styles.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head><body>
+<header>
+  <h1>Schlagkartei</h1>
+  <div class="actions">
+    <button id="btnLocate">📍 Meine Position</button>
+    <button id="btnInfoTiles">Infokacheln</button>
+    <button id="btnLogout">Logout</button>
+  </div>
+</header>
+<main>
+<aside>
+  <div class="panel">
+    <div class="label">Erntejahr</div><select id="selJahr"></select><div style="height:10px"></div>
+    <div class="label">Betrieb</div><select id="selBetrieb"></select><div style="height:10px"></div>
+    <div class="label">Frucht</div><select id="selFrucht"></select>
+    <div style="height:12px"></div>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Schläge</div><div class="v" id="kpiCount">–</div></div>
+      <div class="kpi"><div class="k">Summe ha</div><div class="v" id="kpiHa">–</div></div>
+    </div>
+    <div class="small" style="margin-top:8px;">(Inaktive Schläge werden ausgeblendet)</div>
+  </div>
+  <div class="panel">
+    <div class="list" id="list"></div>
+    <div class="small" id="listHint" style="margin-top:10px;"></div>
+  </div>
+</aside>
+<div id="map"></div>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module" src="./app.js"></script>
+</body></html>
