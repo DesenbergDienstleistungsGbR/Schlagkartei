@@ -236,6 +236,9 @@ async function loadYears(){
         o.textContent=String(y);
         selYear.appendChild(o);
       });
+      // Default auf 2026, falls vorhanden
+      const opt2026 = Array.from(selYear.options).find(o=>o.value==="2026");
+      if(opt2026){ selYear.value="2026"; }
     }
   }catch(e){
     // ignore -> fallback to existing options

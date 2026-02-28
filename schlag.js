@@ -4,7 +4,16 @@ document.getElementById("btnLogout").onclick = logout;
 
 const params=new URLSearchParams(window.location.search);
 const jahr=Number(params.get("jahr")||"");
+const sl_nr=params.get("sl_nr")||"";
 const name=params.get("name")||"";
+
+function norm(s){
+  return String(s||"")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
 
 document.getElementById("btnBack").onclick=()=>window.location.href="./index.html";
 document.getElementById("title").textContent=`Schlag: ${name} (${jahr||""})`;
@@ -50,7 +59,9 @@ function apply(){
 }
 async function init(){
   const all=await loadJSON("./data/mitteleinsatz.json");
-  rowsAll=all.filter(r=>String(r.schlag||"")===String(name) && Number(r.e_jahr)===Number(jahr));
+  const match = (r)=>norm(r.schlag)===norm(name);
+  rowsAll=all.filter(r=>match(r) && Number(r.e_jahr)===Number(jahr));
+  
   const arts=uniq(rowsAll.map(r=>r.art)).sort((a,b)=>String(a).localeCompare(String(b)));
   fillSelect(selArt, arts, "Alle Arten");
   apply();
