@@ -41,3 +41,33 @@ th{position:sticky;top:0;background:white;z-index:1;}
 }
 .infotile .n { font-weight: 700; }
 .infotile .h { color: #666; }
+
+
+/* Mobile layout: Karte vollflächig + Filter als Bottom-Sheet */
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; height: calc(100vh - 58px); }
+  #map { height: calc(100vh - 58px); }
+  aside {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    height: 70vh;
+    transform: translateY(calc(70vh - 56px)); /* nur Griff sichtbar */
+    transition: transform .2s ease;
+    z-index: 1000;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    border-radius: 16px 16px 0 0;
+  }
+  aside.open { transform: translateY(0); }
+  .sheet-handle {
+    height: 44px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .sheet-handle::before{
+    content:"";
+    width: 46px; height: 5px;
+    border-radius: 999px;
+    background: #cfcfcf;
+    display:block;
+  }
+}

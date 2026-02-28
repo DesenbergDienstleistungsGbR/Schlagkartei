@@ -11,6 +11,10 @@ const kpiHa=document.getElementById("kpiHa");
 const listHint=document.getElementById("listHint");
 const btnLocate=document.getElementById("btnLocate");
 const btnInfoTiles=document.getElementById("btnInfoTiles");
+const btnPanel=document.getElementById("btnPanel");
+const sheet=document.getElementById("sheet");
+const sheetHandle=document.getElementById("sheetHandle");
+
 
 const map=L.map("map");
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19}).addTo(map);
@@ -95,6 +99,10 @@ btnInfoTiles.onclick = () => {
   saveState();
 };
 
+// Mobile: Filter-Panel (Bottom Sheet)
+if(btnPanel && sheet) btnPanel.onclick = () => sheet.classList.toggle("open");
+if(sheetHandle && sheet) sheetHandle.onclick = () => sheet.classList.toggle("open");
+
 function fmt(n,d=2){ if(n==null||isNaN(n)) return "–"; return Number(n).toFixed(d); }
 async function loadJSON(p){ const r=await fetch(p, { cache:"no-store" }); if(!r.ok) throw new Error("Fetch failed: "+p); return r.json(); }
 function uniq(a){ return [...new Set(a)].filter(v=>v!=null); }
@@ -115,7 +123,7 @@ function applyFilters(){
   let rows=liste;
 
   // Only active (not inaktiv)
-  rows = rows.filter(r => Number(r.inaktiv || 0) !== 1);
+  rows = rows.filter(r => String(r.inaktiv ?? "0").trim() !== "1");
 
   if(jahr!=null) rows=rows.filter(r=>Number(r.jahr)===jahr);
   if(betrieb) rows=rows.filter(r=>(r.betrieb_name||"")===betrieb);
@@ -154,12 +162,12 @@ async function loadUmrisseForYear(jahr){
   umrisseLayer=L.geoJSON(geo,{
     style:()=>({weight:2, fillOpacity:0.2, opacity:0.9}),
     onEachFeature:(feature,layer)=>{
-      const inaktiv = Number(feature?.properties?.inaktiv || 0);
-      if(inaktiv === 1){
+      const inaktiv = String(feature?.properties?.inaktiv ?? "0").trim() === "1";
+if(inaktiv){
         layer.setStyle({weight:1, fillOpacity:0.0, opacity:0.15});
       }
       layer.on("click",()=>{
-        if(inaktiv === 1) return;
+        if(inaktiv) return;
         const sid=String(feature.properties?.schlag_id??"");
         const row=liste.find(r=>Number(r.inaktiv||0)!==1 && String(r.schlag_id)===sid && Number(r.jahr)===Number(jahr));
         if(row) openSchlag(row);
@@ -216,3 +224,21 @@ async function init(){
   map.on("moveend zoomend", () => saveState());
 }
 init().catch(err=>{ console.error(err); alert("Fehler beim Laden der Daten: " + (err?.message || err)); });
+
+async function loadYears(){
+  try{
+    const years = await (await fetch("data/years.json?ts="+Date.now())).json();
+    if(Array.isArray(years) && years.length){
+      selYear.innerHTML = "";
+      years.sort((a,b)=>a-b).forEach(y=>{
+        const o=document.createElement("option");
+        o.value=String(y);
+        o.textContent=String(y);
+        selYear.appendChild(o);
+      });
+    }
+  }catch(e){
+    // ignore -> fallback to existing options
+  }
+}
+

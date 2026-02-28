@@ -7,13 +7,15 @@
 <header>
   <h1>Schlagkartei</h1>
   <div class="actions">
+    <button id="btnPanel">Filter</button>
     <button id="btnLocate">📍 Meine Position</button>
     <button id="btnInfoTiles">Infokacheln</button>
     <button id="btnLogout">Logout</button>
   </div>
 </header>
 <main>
-<aside>
+<aside id="sheet">
+  <div class="sheet-handle" id="sheetHandle"></div>
   <div class="panel">
     <div class="label">Erntejahr</div><select id="selJahr"></select><div style="height:10px"></div>
     <div class="label">Betrieb</div><select id="selBetrieb"></select><div style="height:10px"></div>
