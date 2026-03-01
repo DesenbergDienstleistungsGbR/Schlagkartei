@@ -48,13 +48,33 @@ function showPosition(lat,lng,accuracy){
   myPosMarker = L.circleMarker([lat,lng], { radius:7, weight:2, fillOpacity:0.8 }).addTo(map);
   myPosCircle = L.circle([lat,lng], { radius: accuracy || 20, weight:1, fillOpacity:0.08 }).addTo(map);
   map.setView([lat,lng], 16);
+  // Zustand speichern, damit beim nächsten Öffnen der Kartenausschnitt passt
+  try{ saveState(); }catch(e){}
 }
 btnLocate.onclick = () => {
   if(!navigator.geolocation){ alert("Geolocation wird nicht unterstützt."); return; }
-  navigator.geolocation.getCurrentPosition(
-    (pos)=>{ const {latitude,longitude,accuracy}=pos.coords; showPosition(latitude,longitude,accuracy); },
+
+  // Für bessere Genauigkeit im Feld: watchPosition laufen lassen, bis accuracy gut ist
+  if(window._watchId){
+    try{ navigator.geolocation.clearWatch(window._watchId); }catch(e){}
+    window._watchId=null;
+  }
+
+  window._watchId = navigator.geolocation.watchPosition(
+    (pos)=>{
+      const {latitude,longitude,accuracy}=pos.coords;
+      console.log("GPS:", latitude, longitude, "accuracy(m):", accuracy);
+
+      // Erst setzen wenn die Genauigkeit brauchbar ist (sonst landet man oft >500m daneben)
+      if(accuracy==null || accuracy>50) return;
+
+      showPosition(latitude,longitude,accuracy);
+
+      try{ navigator.geolocation.clearWatch(window._watchId); }catch(e){}
+      window._watchId=null;
+    },
     (err)=>{ alert("Position nicht verfügbar: " + err.message); },
-    { enableHighAccuracy:true, timeout:10000, maximumAge:0 }
+    { enableHighAccuracy:true, timeout:20000, maximumAge:0 }
   );
 };
 
