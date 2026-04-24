@@ -232,16 +232,12 @@ function openSchlag(r) {
 // ================== FAHRSPUREN ==================
 let tracksLayer = null;
 let tracksOn = false;
-const tracksCache = new Map();
+let tracksCache = null;
 
-function currentYear() {
-  return Number(selJahr.value);
-}
+async function ensureTracksLoaded() {
+  if (tracksCache) return tracksCache;
 
-async function ensureTracksLoadedForYear(jahr) {
-  if (tracksCache.has(jahr)) return tracksCache.get(jahr);
-
-  const url = `./data/fahrspuren_${jahr}.geojson`;
+  const url = "./data/fahrspuren.geojson";
   const res = await fetch(url, { cache: "default" });
 
   if (!res.ok) {
@@ -249,7 +245,7 @@ async function ensureTracksLoadedForYear(jahr) {
   }
 
   const data = await res.json();
-  tracksCache.set(jahr, data);
+  tracksCache = data;
   return data;
 }
 
@@ -268,8 +264,7 @@ async function setTracksVisible(visible) {
   }
 
   try {
-    const jahr = currentYear();
-    const data = await ensureTracksLoadedForYear(jahr);
+    const data = await ensureTracksLoaded();
 
     tracksLayer = L.geoJSON(data, {
       style: () => ({
@@ -280,6 +275,10 @@ async function setTracksVisible(visible) {
       interactive: false,
       renderer: L.canvas()
     }).addTo(map);
+
+    if (typeof tracksLayer.bringToFront === "function") {
+      tracksLayer.bringToFront();
+    }
   } catch (err) {
     console.warn(err);
     tracksOn = false;
