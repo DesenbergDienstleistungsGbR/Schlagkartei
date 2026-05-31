@@ -47,6 +47,19 @@ const btnWater = getOrCreateHeaderButton("btnWater", "Gewässer aus");
 // ================== KARTE ==================
 const map = L.map("map", { preferCanvas: true });
 
+// Eigene Leaflet-Panes: Gewässer/Fahrspuren liegen sichtbar unten,
+// nehmen aber keine Klicks an. Schläge liegen oben und bleiben anklickbar.
+map.createPane("nonInteractivePane");
+map.getPane("nonInteractivePane").style.zIndex = 410;
+map.getPane("nonInteractivePane").style.pointerEvents = "none";
+
+map.createPane("fieldsPane");
+map.getPane("fieldsPane").style.zIndex = 650;
+map.getPane("fieldsPane").style.pointerEvents = "auto";
+
+const nonInteractiveRenderer = L.canvas({ pane: "nonInteractivePane" });
+const fieldsRenderer = L.svg({ pane: "fieldsPane" });
+
 const streetLayer = L.tileLayer(
   "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
   { maxZoom: 19 }
@@ -84,6 +97,7 @@ function loadState() {
 
 let liste = [];
 let umrisseLayer = null;
+let umrisseShadowLayer = null;
 
 // ================== POSITION ==================
 let myPosMarker = null;
@@ -333,13 +347,15 @@ async function setTracksVisible(visible) {
     const data = await ensureTracksLoaded();
 
     tracksLayer = L.geoJSON(data, {
+      pane: "nonInteractivePane",
       style: () => ({
         color: "#ff9800",
         weight: 2,
         opacity: 0.9
       }),
       interactive: false,
-      renderer: L.canvas()
+      bubblingMouseEvents: false,
+      renderer: nonInteractiveRenderer
     }).addTo(map);
 
     // 🔥 FIX: Fahrspuren nach hinten, Schläge nach vorne
@@ -428,6 +444,7 @@ async function setWaterDistance(distance) {
     };
 
     waterLayer = L.geoJSON(selected, {
+      pane: "nonInteractivePane",
       style: () => ({
         color: "#0066cc",
         weight: 2,
@@ -436,7 +453,8 @@ async function setWaterDistance(distance) {
         fillOpacity: 0.22
       }),
       interactive: false,
-      renderer: L.canvas()
+      bubblingMouseEvents: false,
+      renderer: nonInteractiveRenderer
     }).addTo(map);
 
     if (typeof waterLayer.bringToBack === "function") {
@@ -536,7 +554,20 @@ function applyFilters() {
     umrisseLayer.eachLayer(layer => {
       const sid = String(layer.feature?.properties?.schlag_id ?? "");
       const isIn = allowed.has(sid);
-      layer.setStyle({ color: "#00C853", fillColor: "#00C853", weight: 2, fillOpacity: isIn ? 0.20 : 0.0, opacity: 1.0 });
+      layer.setStyle({
+        // Umriss ist immer sichtbar; die Flaeche wird nur bei aktueller Auswahl gefuellt.
+        color: "#FFF176",
+        weight: 2.2,
+        opacity: 0.95,
+        fillColor: "#FFF176",
+        fillOpacity: isIn ? 0.28 : 0
+      });
+    });
+  }
+  if (umrisseShadowLayer) {
+    // Der alte Schwarz/Weiss-Schatten bleibt deaktiviert, damit alle Umrisse gleich wirken.
+    umrisseShadowLayer.eachLayer(layer => {
+      layer.setStyle({ opacity: 0, fillOpacity: 0, interactive: false });
     });
   }
 
@@ -547,15 +578,29 @@ function applyFilters() {
 async function loadUmrisseForYear(jahr) {
   const geo = await loadJSON(`./data/umrisse_${jahr}.geojson`);
   if (umrisseLayer) map.removeLayer(umrisseLayer);
+  if (umrisseShadowLayer) map.removeLayer(umrisseShadowLayer);
+
+  // Schlaggrenzen: immer sichtbarer hellgelber Umriss.
+  // Die Flaechenfuellung wird spaeter in applyFilters() nur fuer die aktuelle Auswahl gesetzt.
+  umrisseShadowLayer = null;
 
   umrisseLayer = L.geoJSON(geo, {
-    style: () => ({ color: "#00C853", fillColor: "#00C853", weight: 2, fillOpacity: 0.20, opacity: 1.0 }),
+    pane: "fieldsPane",
+    interactive: true,
+    renderer: fieldsRenderer,
+    style: () => ({
+      color: "#FFF176",
+      weight: 2.2,
+      opacity: 0.95,
+      fillColor: "#FFF176",
+      fillOpacity: 0
+    }),
 
     onEachFeature: (feature, layer) => {
       const inaktiv = String(feature?.properties?.inaktiv ?? "0").trim() === "1";
 
       if (inaktiv) {
-        layer.setStyle({ color: "#00C853", fillColor: "#00C853", weight: 1, fillOpacity: 0.0, opacity: 0.15 });
+        layer.setStyle({ color: "#FFF176", weight: 1.8, fillColor: "#FFF176", fillOpacity: 0.0, opacity: 0.45 });
       }
 
       layer.on("click", () => {
@@ -589,6 +634,9 @@ async function loadUmrisseForYear(jahr) {
   }
   if (typeof tracksLayer?.bringToBack === "function") {
     tracksLayer.bringToBack();
+  }
+  if (typeof umrisseShadowLayer?.bringToFront === "function") {
+    umrisseShadowLayer.bringToFront();
   }
   if (typeof umrisseLayer.bringToFront === "function") {
     umrisseLayer.bringToFront();
