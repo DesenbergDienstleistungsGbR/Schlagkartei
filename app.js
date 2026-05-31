@@ -1,6 +1,7 @@
-﻿import { requireAuth, logout } from "./auth.js";
+import { requireAuth, logout } from "./auth.js";
 requireAuth();
 document.getElementById("btnLogout").onclick = logout;
+console.log("Schlagkartei app.js Master: Gewässer, Farben, Position-Follow geladen", new Date().toISOString());
 
 const selJahr = document.getElementById("selJahr");
 const selBetrieb = document.getElementById("selBetrieb");
@@ -15,21 +16,33 @@ const btnPanel = document.getElementById("btnPanel");
 const sheet = document.getElementById("sheet");
 const sheetHandle = document.getElementById("sheetHandle");
 
-// Neue Buttons sauber ergänzen, ohne HTML umzubauen
+// Zusatz-Buttons sauber ergänzen, ohne Duplikate zu erzeugen.
+// Falls index.html schon Buttons mit diesen IDs enthält, werden genau diese verwendet.
 const actionsEl = document.querySelector("header .actions");
 
-const btnSatellite = document.createElement("button");
-btnSatellite.id = "btnSatellite";
-btnSatellite.textContent = "Satellit";
+function getOrCreateHeaderButton(id, label, beforeEl = btnInfoTiles) {
+  let button = document.getElementById(id);
+  if (button) {
+    button.textContent = button.textContent || label;
+    button.type = "button";
+    return button;
+  }
 
-const btnTracks = document.createElement("button");
-btnTracks.id = "btnTracks";
-btnTracks.textContent = "Fahrspuren";
+  button = document.createElement("button");
+  button.id = id;
+  button.textContent = label;
+  button.type = "button";
 
-if (actionsEl) {
-  actionsEl.insertBefore(btnSatellite, btnInfoTiles);
-  actionsEl.insertBefore(btnTracks, btnInfoTiles);
+  if (actionsEl) {
+    actionsEl.insertBefore(button, beforeEl || null);
+  }
+
+  return button;
 }
+
+const btnSatellite = getOrCreateHeaderButton("btnSatellite", "Satellit");
+const btnTracks = getOrCreateHeaderButton("btnTracks", "Fahrspuren");
+const btnWater = getOrCreateHeaderButton("btnWater", "Gewässer aus");
 
 // ================== KARTE ==================
 const map = L.map("map", { preferCanvas: true });
@@ -56,6 +69,7 @@ function saveState() {
     infoTilesOn,
     isSatelliteOn,
     tracksOn,
+    waterDistance: (typeof waterDistance !== "undefined" ? waterDistance : 0),
     map: { c: map.getCenter(), z: map.getZoom() }
   };
   localStorage.setItem(STATE_KEY, JSON.stringify(st));
@@ -76,13 +90,42 @@ let myPosMarker = null;
 let myPosCircle = null;
 let myPosWatchId = null;
 let myPosActive = false;
+let myPosFollow = false;
+let myLastPosition = null;
+let internalPositionMove = false;
+
+const btnBackToPosition = getOrCreateHeaderButton("btnBackToPosition", "📍 Zur Position", btnInfoTiles);
+btnBackToPosition.style.display = "none";
+
+function updatePositionButtons() {
+  btnLocate.classList.toggle("primary", myPosActive);
+  btnLocate.textContent = myPosActive ? "📍 Position an" : "📍 Meine Position";
+  btnBackToPosition.style.display = (myPosActive && !myPosFollow) ? "inline-block" : "none";
+}
+
+function centerOnLastPosition(zoomToPosition = false) {
+  if (!myLastPosition) return;
+
+  myPosFollow = true;
+  updatePositionButtons();
+
+  internalPositionMove = true;
+  const currentZoom = map.getZoom();
+  const targetZoom = zoomToPosition ? Math.max(currentZoom || 0, 17) : currentZoom;
+  map.setView([myLastPosition.lat, myLastPosition.lng], targetZoom, { animate: true });
+  setTimeout(() => { internalPositionMove = false; }, 700);
+}
 
 function showPosition(lat, lng, accuracy) {
+  myLastPosition = { lat, lng, accuracy };
+
   if (!myPosMarker) {
     myPosMarker = L.circleMarker([lat, lng], {
       radius: 7,
-      weight: 2,
-      fillOpacity: 0.8
+      weight: 3,
+      color: "#0057d9",
+      fillColor: "#ffffff",
+      fillOpacity: 1
     }).addTo(map);
   } else {
     myPosMarker.setLatLng([lat, lng]);
@@ -91,7 +134,9 @@ function showPosition(lat, lng, accuracy) {
   if (!myPosCircle) {
     myPosCircle = L.circle([lat, lng], {
       radius: accuracy || 20,
+      color: "#0057d9",
       weight: 1,
+      fillColor: "#0057d9",
       fillOpacity: 0.08
     }).addTo(map);
   } else {
@@ -99,7 +144,13 @@ function showPosition(lat, lng, accuracy) {
     myPosCircle.setRadius(accuracy || 20);
   }
 
-  map.panTo([lat, lng], { animate: false });
+  // Standortpunkt wird immer aktualisiert.
+  // Die Karte folgt nur, solange der Nutzer nicht selbst gewischt/gezoomt hat.
+  if (myPosFollow) {
+    internalPositionMove = true;
+    map.panTo([lat, lng], { animate: false });
+    setTimeout(() => { internalPositionMove = false; }, 300);
+  }
 }
 
 function stopPositionTracking() {
@@ -108,7 +159,8 @@ function stopPositionTracking() {
     myPosWatchId = null;
   }
   myPosActive = false;
-  btnLocate.classList.remove("primary");
+  myPosFollow = false;
+  updatePositionButtons();
 }
 
 btnLocate.onclick = () => {
@@ -122,12 +174,14 @@ btnLocate.onclick = () => {
     return;
   }
 
+  myPosActive = true;
+  myPosFollow = true;
+  updatePositionButtons();
+
   myPosWatchId = navigator.geolocation.watchPosition(
     (pos) => {
       const { latitude, longitude, accuracy } = pos.coords;
       showPosition(latitude, longitude, accuracy);
-      myPosActive = true;
-      btnLocate.classList.add("primary");
     },
     (err) => {
       alert("Position nicht verfügbar: " + err.message);
@@ -136,6 +190,18 @@ btnLocate.onclick = () => {
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
   );
 };
+
+btnBackToPosition.onclick = () => {
+  centerOnLastPosition(true);
+};
+
+map.on("dragstart zoomstart", () => {
+  if (!myPosActive || internalPositionMove) return;
+  myPosFollow = false;
+  updatePositionButtons();
+});
+
+updatePositionButtons();
 
 // ================== INFOKACHELN ==================
 const INFO_MIN_ZOOM = 14;
@@ -297,6 +363,121 @@ btnTracks.onclick = async () => {
   await setTracksVisible(!tracksOn);
 };
 
+// ================== GEWÄSSER-PUFFER ==================
+let waterLayer = null;
+let waterCache = null;
+let waterDistance = 0; // 0 = aus, sonst 5 / 10 / 20
+const WATER_DISTANCES = [0, 5, 10, 20];
+
+function updateWaterButton(extraText = "") {
+  if (!btnWater) return;
+  const base = waterDistance ? `Gewässer ${waterDistance} m` : "Gewässer aus";
+  btnWater.textContent = extraText ? `${base} ${extraText}` : base;
+  btnWater.classList.toggle("primary", !!waterDistance);
+}
+
+async function ensureWaterLoaded() {
+  if (waterCache) return waterCache;
+
+  const url = "./data/gewaesser_puffer.geojson";
+  console.log("Lade Gewässer-Puffer:", url);
+  const res = await fetch(url, { cache: "no-store" });
+
+  if (!res.ok) {
+    throw new Error(`Gewässer-Puffer nicht gefunden oder nicht ladbar: ${url} (HTTP ${res.status})`);
+  }
+
+  const data = await res.json();
+  if (!data || !Array.isArray(data.features)) {
+    throw new Error("Gewässer-Puffer-Datei ist kein gültiges GeoJSON FeatureCollection.");
+  }
+
+  console.log("Gewässer-Puffer geladen, Features:", data.features.length);
+  waterCache = data;
+  return data;
+}
+
+async function setWaterDistance(distance) {
+  if (waterLayer) {
+    map.removeLayer(waterLayer);
+    waterLayer = null;
+  }
+
+  waterDistance = Number(distance) || 0;
+  console.log("Setze Gewässer-Abstand:", waterDistance);
+  updateWaterButton(waterDistance ? "lädt..." : "");
+
+  if (!waterDistance) {
+    updateWaterButton();
+    saveState();
+    return;
+  }
+
+  try {
+    const data = await ensureWaterLoaded();
+    const selectedFeatures = (data.features || []).filter(f => Number(f.properties?.abstand) === waterDistance);
+    console.log(`Gewässer ${waterDistance} m Features:`, selectedFeatures.length);
+
+    if (!selectedFeatures.length) {
+      throw new Error(`In gewaesser_puffer.geojson gibt es keine Features mit abstand = ${waterDistance}.`);
+    }
+
+    const selected = {
+      type: "FeatureCollection",
+      features: selectedFeatures
+    };
+
+    waterLayer = L.geoJSON(selected, {
+      style: () => ({
+        color: "#0066cc",
+        weight: 2,
+        opacity: 0.95,
+        fillColor: "#00bcd4",
+        fillOpacity: 0.22
+      }),
+      interactive: false,
+      renderer: L.canvas()
+    }).addTo(map);
+
+    if (typeof waterLayer.bringToBack === "function") {
+      waterLayer.bringToBack();
+    }
+    if (typeof tracksLayer?.bringToBack === "function") {
+      tracksLayer.bringToBack();
+    }
+    if (typeof umrisseLayer?.bringToFront === "function") {
+      umrisseLayer.bringToFront();
+    }
+
+    updateWaterButton();
+  } catch (err) {
+    console.error("Gewässer-Layer konnte nicht geladen werden:", err);
+    alert("Gewässer-Layer konnte nicht geladen werden. Bitte prüfen: docs/data/gewaesser_puffer.geojson\n\n" + (err?.message || err));
+    waterDistance = 0;
+    updateWaterButton();
+  }
+
+  saveState();
+}
+
+function handleWaterButtonClick(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  console.log("Gewässer-Button geklickt");
+  const currentIndex = WATER_DISTANCES.indexOf(waterDistance);
+  const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % WATER_DISTANCES.length : 1;
+  setWaterDistance(WATER_DISTANCES[nextIndex]);
+}
+
+if (btnWater) {
+  btnWater.type = "button";
+  btnWater.addEventListener("click", handleWaterButtonClick);
+  window.__testGewaesserButton = handleWaterButtonClick;
+  console.log("Gewässer-Button initialisiert:", btnWater);
+}
+
 // ================== SATELLIT ==================
 function setSatelliteVisible(visible) {
   if (visible === isSatelliteOn) return;
@@ -355,7 +536,7 @@ function applyFilters() {
     umrisseLayer.eachLayer(layer => {
       const sid = String(layer.feature?.properties?.schlag_id ?? "");
       const isIn = allowed.has(sid);
-      layer.setStyle({ weight: 2, fillOpacity: isIn ? 0.35 : 0.0, opacity: 0.9 });
+      layer.setStyle({ color: "#00C853", fillColor: "#00C853", weight: 2, fillOpacity: isIn ? 0.20 : 0.0, opacity: 1.0 });
     });
   }
 
@@ -368,13 +549,13 @@ async function loadUmrisseForYear(jahr) {
   if (umrisseLayer) map.removeLayer(umrisseLayer);
 
   umrisseLayer = L.geoJSON(geo, {
-    style: () => ({ weight: 2, fillOpacity: 0.2, opacity: 0.9 }),
+    style: () => ({ color: "#00C853", fillColor: "#00C853", weight: 2, fillOpacity: 0.20, opacity: 1.0 }),
 
     onEachFeature: (feature, layer) => {
       const inaktiv = String(feature?.properties?.inaktiv ?? "0").trim() === "1";
 
       if (inaktiv) {
-        layer.setStyle({ weight: 1, fillOpacity: 0.0, opacity: 0.15 });
+        layer.setStyle({ color: "#00C853", fillColor: "#00C853", weight: 1, fillOpacity: 0.0, opacity: 0.15 });
       }
 
       layer.on("click", () => {
@@ -402,7 +583,13 @@ async function loadUmrisseForYear(jahr) {
     }
   }).addTo(map);
 
-  // 🔥 WICHTIG: sorgt dafür, dass Schläge über Fahrspuren liegen
+  // 🔥 WICHTIG: sorgt dafür, dass Schläge über Fahrspuren/Gewässer-Puffern liegen
+  if (typeof waterLayer?.bringToBack === "function") {
+    waterLayer.bringToBack();
+  }
+  if (typeof tracksLayer?.bringToBack === "function") {
+    tracksLayer.bringToBack();
+  }
   if (typeof umrisseLayer.bringToFront === "function") {
     umrisseLayer.bringToFront();
   }
@@ -457,6 +644,12 @@ async function init() {
 
   if (st?.isSatelliteOn) {
     setSatelliteVisible(true);
+  }
+
+  if (st?.waterDistance) {
+    await setWaterDistance(st.waterDistance);
+  } else {
+    updateWaterButton();
   }
 
   if (st?.tracksOn) {
