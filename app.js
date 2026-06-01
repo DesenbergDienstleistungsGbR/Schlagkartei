@@ -16,6 +16,10 @@ const btnPanel = document.getElementById("btnPanel");
 const sheet = document.getElementById("sheet");
 const sheetHandle = document.getElementById("sheetHandle");
 
+// Mehrfachauswahl fuer Betriebe: leer = alle Betriebe anzeigen.
+const selectedBetriebe = new Set();
+let betriebeMultiEl = null;
+
 // Zusatz-Buttons sauber ergänzen, ohne Duplikate zu erzeugen.
 // Falls index.html schon Buttons mit diesen IDs enthält, werden genau diese verwendet.
 const actionsEl = document.querySelector("header .actions");
@@ -77,7 +81,9 @@ const STATE_KEY = "schlagkartei_state_v1";
 function saveState() {
   const st = {
     jahr: selJahr.value || "",
-    betrieb: selBetrieb.value || "",
+    // Rueckwaertskompatibel: betrieb bleibt erhalten, neu ist betriebe[].
+    betrieb: getSelectedBetriebe()[0] || selBetrieb.value || "",
+    betriebe: getSelectedBetriebe(),
     frucht: selFrucht.value || "",
     infoTilesOn,
     isSatelliteOn,
@@ -299,6 +305,75 @@ function fillSelect(s, vals, all) {
   });
 }
 
+function getSelectedBetriebe() {
+  return Array.from(selectedBetriebe);
+}
+
+function rowMatchesSelectedBetriebe(row) {
+  if (!selectedBetriebe.size) return true;
+  return selectedBetriebe.has(row.betrieb_name || "");
+}
+
+function renderBetriebMulti(vals) {
+  if (!betriebeMultiEl) {
+    betriebeMultiEl = document.createElement("div");
+    betriebeMultiEl.id = "betriebMulti";
+    betriebeMultiEl.style.display = "flex";
+    betriebeMultiEl.style.flexDirection = "column";
+    betriebeMultiEl.style.gap = "6px";
+    betriebeMultiEl.style.marginTop = "6px";
+
+    if (selBetrieb && selBetrieb.parentNode) {
+      selBetrieb.insertAdjacentElement("afterend", betriebeMultiEl);
+      selBetrieb.style.display = "none";
+    }
+  }
+
+  const allowed = new Set(vals);
+  for (const b of Array.from(selectedBetriebe)) {
+    if (!allowed.has(b)) selectedBetriebe.delete(b);
+  }
+
+  betriebeMultiEl.innerHTML = "";
+
+  const makeButton = (label, active, onClick) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.style.display = "flex";
+    btn.style.alignItems = "center";
+    btn.style.justifyContent = "space-between";
+    btn.style.gap = "10px";
+    btn.style.width = "100%";
+    btn.style.textAlign = "left";
+    btn.style.padding = "8px 10px";
+    btn.style.borderRadius = "12px";
+    btn.style.border = active ? "1px solid #111" : "1px solid var(--border)";
+    btn.style.background = active ? "#f3f3f3" : "white";
+    btn.innerHTML = `<span>${label}</span><span aria-hidden="true">${active ? "●" : "○"}</span>`;
+    btn.onclick = onClick;
+    return btn;
+  };
+
+  betriebeMultiEl.appendChild(makeButton("Alle Betriebe", selectedBetriebe.size === 0, () => {
+    selectedBetriebe.clear();
+    renderBetriebMulti(vals);
+    applyFilters();
+    saveState();
+  }));
+
+  vals.forEach(betrieb => {
+    const active = selectedBetriebe.has(betrieb);
+    betriebeMultiEl.appendChild(makeButton(betrieb, active, () => {
+      if (selectedBetriebe.has(betrieb)) selectedBetriebe.delete(betrieb);
+      else selectedBetriebe.add(betrieb);
+      selBetrieb.value = selectedBetriebe.size === 1 ? Array.from(selectedBetriebe)[0] : "";
+      renderBetriebMulti(vals);
+      applyFilters();
+      saveState();
+    }));
+  });
+}
+
 function openSchlag(r) {
   saveState();
   const params = new URLSearchParams({
@@ -446,11 +521,12 @@ async function setWaterDistance(distance) {
     waterLayer = L.geoJSON(selected, {
       pane: "nonInteractivePane",
       style: () => ({
-        color: "#0066cc",
+        // Gewuenscht: Gewaesser/Puffer klar blau darstellen.
+        color: "#0066CC",
         weight: 2,
         opacity: 0.95,
-        fillColor: "#00bcd4",
-        fillOpacity: 0.22
+        fillColor: "#1E90FF",
+        fillOpacity: 0.28
       }),
       interactive: false,
       bubblingMouseEvents: false,
@@ -517,10 +593,34 @@ btnSatellite.onclick = () => {
   setSatelliteVisible(!isSatelliteOn);
 };
 
+
+// ================== FARBEN / SCHLAGDARSTELLUNG ==================
+// Umrisse bleiben immer sichtbar. Flaechen werden nur gefuellt,
+// wenn eine Frucht im Filter ausgewaehlt ist.
+const FRUCHT_FILL_COLORS = [
+  "#FFF176", // gelb
+  "#4DD0E1", // cyan
+  "#CE93D8", // violett
+  "#A5D6A7", // hellgruen
+  "#FFCC80", // orange hell
+  "#90CAF9", // hellblau
+  "#F48FB1", // rosa
+  "#DCE775"  // limette
+];
+
+function colorForFrucht(value) {
+  const key = String(value || "offen");
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = ((hash << 5) - hash) + key.charCodeAt(i);
+    hash |= 0;
+  }
+  return FRUCHT_FILL_COLORS[Math.abs(hash) % FRUCHT_FILL_COLORS.length];
+}
+
 // ================== FILTER ==================
 function applyFilters() {
   const jahr = selJahr.value ? Number(selJahr.value) : null;
-  const betrieb = selBetrieb.value || null;
   const frucht = selFrucht.value || null;
 
   let rows = liste;
@@ -529,7 +629,7 @@ function applyFilters() {
   rows = rows.filter(r => String(r.inaktiv ?? "0").trim() !== "1");
 
   if (jahr != null) rows = rows.filter(r => Number(r.jahr) === jahr);
-  if (betrieb) rows = rows.filter(r => (r.betrieb_name || "") === betrieb);
+  rows = rows.filter(rowMatchesSelectedBetriebe);
   if (frucht) rows = rows.filter(r => (r.frucht_kurz || "") === frucht);
 
   kpiCount.textContent = rows.length.toString();
@@ -549,25 +649,43 @@ function applyFilters() {
 
   listHint.textContent = rows.length ? "" : "Keine Schläge für die aktuelle Auswahl.";
 
+  const allowed = new Set(rows.map(r => String(r.schlag_id)));
+  const rowBySchlag = new Map(rows.map(r => [String(r.schlag_id), r]));
+  const fruchtIstGewaehlt = Boolean(frucht);
+  // Auswahl = aktive Filterauswahl in Betrieb oder Frucht.
+  // Ohne aktive Auswahl bleiben alle sichtbaren Schlagumrisse hellgelb.
+  const hatAktiveAuswahl = selectedBetriebe.size > 0 || Boolean(frucht);
+
   if (umrisseLayer) {
-    const allowed = new Set(rows.map(r => String(r.schlag_id)));
     umrisseLayer.eachLayer(layer => {
       const sid = String(layer.feature?.properties?.schlag_id ?? "");
+      const row = rowBySchlag.get(sid);
       const isIn = allowed.has(sid);
+      const isSelected = hatAktiveAuswahl && isIn;
+
       layer.setStyle({
-        // Umriss ist immer sichtbar; die Flaeche wird nur bei aktueller Auswahl gefuellt.
-        color: "#FFF176",
-        weight: 2.2,
-        opacity: 0.95,
-        fillColor: "#FFF176",
-        fillOpacity: isIn ? 0.28 : 0
+        // Gewuenscht: normale Schlagumrisse hellgelb, ausgewaehlte Schlaege weiss.
+        color: isSelected ? "#FFFFFF" : "#FFF176",
+        weight: isSelected ? 3.4 : 2.3,
+        opacity: isIn ? 1.0 : 0.45,
+        fillColor: (isIn && fruchtIstGewaehlt) ? colorForFrucht(row?.frucht_kurz || frucht) : "#FFF176",
+        fillOpacity: (isIn && fruchtIstGewaehlt) ? 0.35 : 0
       });
     });
   }
   if (umrisseShadowLayer) {
-    // Der alte Schwarz/Weiss-Schatten bleibt deaktiviert, damit alle Umrisse gleich wirken.
     umrisseShadowLayer.eachLayer(layer => {
-      layer.setStyle({ opacity: 0, fillOpacity: 0, interactive: false });
+      const sid = String(layer.feature?.properties?.schlag_id ?? "");
+      const isIn = allowed.has(sid);
+      const isSelected = hatAktiveAuswahl && isIn;
+
+      layer.setStyle({
+        // Dunkler Unterstrich macht den weissen Auswahlumriss auch auf hellen Karten sichtbar.
+        color: isSelected ? "#202020" : "#5F4B00",
+        weight: isSelected ? 5.2 : 4.2,
+        opacity: isIn ? 0.70 : 0.35,
+        fillOpacity: 0
+      });
     });
   }
 
@@ -580,9 +698,19 @@ async function loadUmrisseForYear(jahr) {
   if (umrisseLayer) map.removeLayer(umrisseLayer);
   if (umrisseShadowLayer) map.removeLayer(umrisseShadowLayer);
 
-  // Schlaggrenzen: immer sichtbarer hellgelber Umriss.
-  // Die Flaechenfuellung wird spaeter in applyFilters() nur fuer die aktuelle Auswahl gesetzt.
-  umrisseShadowLayer = null;
+  // Schlaggrenzen: immer sichtbarer Hellgelb/Ocker-Umriss.
+  // Die Flaechenfuellung wird erst bei ausgewaehlter Frucht im Filter gesetzt.
+  umrisseShadowLayer = L.geoJSON(geo, {
+    pane: "fieldsPane",
+    interactive: false,
+    renderer: fieldsRenderer,
+    style: () => ({
+      color: "#5F4B00",
+      weight: 4.2,
+      opacity: 0.70,
+      fillOpacity: 0
+    })
+  }).addTo(map);
 
   umrisseLayer = L.geoJSON(geo, {
     pane: "fieldsPane",
@@ -590,8 +718,8 @@ async function loadUmrisseForYear(jahr) {
     renderer: fieldsRenderer,
     style: () => ({
       color: "#FFF176",
-      weight: 2.2,
-      opacity: 0.95,
+      weight: 2.3,
+      opacity: 1.0,
       fillColor: "#FFF176",
       fillOpacity: 0
     }),
@@ -600,7 +728,7 @@ async function loadUmrisseForYear(jahr) {
       const inaktiv = String(feature?.properties?.inaktiv ?? "0").trim() === "1";
 
       if (inaktiv) {
-        layer.setStyle({ color: "#FFF176", weight: 1.8, fillColor: "#FFF176", fillOpacity: 0.0, opacity: 0.45 });
+        layer.setStyle({ color: "#E0E0E0", weight: 1.2, fillOpacity: 0.0, opacity: 0.35 });
       }
 
       layer.on("click", () => {
@@ -661,6 +789,7 @@ async function init() {
 
     const bet = uniq(base.map(r => r.betrieb_name)).sort((a, b) => (a || "").localeCompare(b || ""));
     fillSelect(selBetrieb, bet, "Alle Betriebe");
+    renderBetriebMulti(bet);
 
     const fr = uniq(base.map(r => r.frucht_kurz)).sort((a, b) => (a || "").localeCompare(b || ""));
     fillSelect(selFrucht, fr, "Alle Früchte");
@@ -673,9 +802,20 @@ async function init() {
 
   refreshDependent();
 
-  if (st?.betrieb && [...selBetrieb.options].some(o => o.value === st.betrieb)) {
-    selBetrieb.value = st.betrieb;
+  if (Array.isArray(st?.betriebe)) {
+    st.betriebe.forEach(b => {
+      if ([...selBetrieb.options].some(o => o.value === b)) selectedBetriebe.add(b);
+    });
+  } else if (st?.betrieb && [...selBetrieb.options].some(o => o.value === st.betrieb)) {
+    selectedBetriebe.add(st.betrieb);
   }
+  renderBetriebMulti(uniq(liste
+    .filter(r => Number(r.inaktiv || 0) !== 1)
+    .filter(r => !selJahr.value || Number(r.jahr) === Number(selJahr.value))
+    .map(r => r.betrieb_name))
+    .sort((a, b) => (a || "").localeCompare(b || "")));
+  selBetrieb.value = selectedBetriebe.size === 1 ? Array.from(selectedBetriebe)[0] : "";
+
   if (st?.frucht && [...selFrucht.options].some(o => o.value === st.frucht)) {
     selFrucht.value = st.frucht;
   }
@@ -717,6 +857,10 @@ async function init() {
   };
 
   selBetrieb.onchange = () => {
+    selectedBetriebe.clear();
+    if (selBetrieb.value) selectedBetriebe.add(selBetrieb.value);
+    const vals = [...selBetrieb.options].map(o => o.value).filter(Boolean);
+    renderBetriebMulti(vals);
     applyFilters();
     saveState();
   };
@@ -731,7 +875,7 @@ async function init() {
       liste
         .filter(r => String(r.inaktiv ?? "0").trim() !== "1")
         .filter(r => !selJahr.value || Number(r.jahr) === Number(selJahr.value))
-        .filter(r => !selBetrieb.value || (r.betrieb_name || "") === selBetrieb.value)
+        .filter(rowMatchesSelectedBetriebe)
         .filter(r => !selFrucht.value || (r.frucht_kurz || "") === selFrucht.value)
     );
     saveState();
